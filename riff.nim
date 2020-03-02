@@ -10,8 +10,8 @@ import tables
 export tables
 
 
-# References
-# ==========
+# {{{ References
+# ==============
 #
 # [1] "EA IFF 85" Standard for Interchange Format Files
 # (Electronic Arts, 1985)
@@ -55,12 +55,14 @@ export tables
 # (Microsoft Dev Center, May 2018)
 # https://docs.microsoft.com/en-us/windows/win32/directshow/avi-riff-file-reference
 #
+# }}}
 
 # {{{ Common
 
 const
   FourCCSize = 4
   ChunkHeaderSize = 8
+  ChunkSizePlaceholder = 0xffffffff'u32
 
 const  # Top level chunk IDs
   FourCC_RIFF* = "RIFF"  ## RIFF chunk (little endian), may contain subchunks
@@ -97,6 +99,7 @@ const  # Standard RIFF chunks
 
   FourCC_DISP* = "DISP"  ## display chunk, contains easy to representation of
                          ## the data
+
   FourCC_JUNK* = "JUNK"  ## represents padding, filler or no relevant data
 
   FourCC_PAD*  = "PAD "  ## represents padding, filler or no relevant data (if
@@ -110,11 +113,11 @@ const  # Standard RIFF chunks
                          ## used in the file (Latin-1 is assumed if not
                          ## specified)
 
-  FourCC_CTOC* = "CTOC"  ## compound file table of contents
-  FourCC_CGRP* = "CGRP"  ## compound file element group
+  FourCC_CTOC* = "CTOC"  ## compound file table of contents (unsupported)
+  FourCC_CGRP* = "CGRP"  ## compound file element group (unsupported)
 
 
-# INFO subchunk types
+# {{{ INFO subchunk types
 const
   # From [5]
   FourCC_INFO_IARL* = "IARL"
@@ -299,7 +302,7 @@ let infoSubchunkNames* = {
   FourCC_INFO_VMIN: "Vegas Version Minor",
   FourCC_INFO_YEAR: "Year"
 }.toTable
-
+# }}}
 
 type
   ChunkKind* = enum
@@ -329,11 +332,10 @@ proc validFourCC(fourCC: string, relaxed: bool = false): bool =
     # TODO for IFF: 32-126, format types only alphanumeric
   return true
 
-
 # }}}
 # {{{ Reader
 
-type 
+type
   Cursor* = object
     path: seq[ChunkInfo]
 
@@ -364,10 +366,15 @@ type
   RiffReader* = ref object
     fs:                 FileStream
     cursor:             Cursor
+    # TODO call funcs do
     doEnterGroup:       bool
     doCheckChunkLimits: bool
 
   RiffReaderError* = object of Exception
+
+  ChunkSetPosition = enum
+    cspSet, cspCur, cspEnd
+
 
 using rr: RiffReader
 
@@ -382,6 +389,10 @@ func cursor*(rr): Cursor = deepCopy(rr.cursor)
 func `cursor=`*(rr; c: Cursor) =
   rr.cursor = c
   rr.doEnterGroup = false
+
+proc checkFileClosed(rw) =
+  if rw.fs == nil:
+    raise newException(RiffReadError, "File has been closed")
 
 
 proc checkChunkLimits(rr; numBytes: Natural) =
@@ -415,11 +426,12 @@ proc readStr(rr; length: Natural): string =
 proc readFourCC*(rr): string =
   rr.readStr(4)
 
-func roundToEven(n: SomeInteger): SomeInteger =
+func padToEven(n: SomeInteger): SomeInteger =
   if n mod 2 == 1: n+1 else: n
 
 
 proc hasNextChunk*(rr): bool =
+  checkFileClosed()
   if rr.doEnterGroup:
     return rr.cursor.currChunk.size > FourCCSize
   else:
@@ -427,12 +439,13 @@ proc hasNextChunk*(rr): bool =
       pc = rr.cursor.parentChunk
       cc = rr.cursor.currChunk
       parentEndPos = pc.filePos + ChunkHeaderSize + pc.size.int64
-      currEndPos = cc.filePos + ChunkHeaderSize + roundToEven(cc.size.int64)
+      currEndPos = cc.filePos + ChunkHeaderSize + padToEven(cc.size.int64)
 
     return currEndPos < parentEndPos
 
 
 proc nextChunk*(rr): ChunkInfo =
+  checkFileClosed()
   if not rr.hasNextChunk:
     raise newException(RiffReaderError,
       "Cannot go to next chunk: " &
@@ -442,7 +455,7 @@ proc nextChunk*(rr): ChunkInfo =
   let nextPos = if rr.doEnterGroup:
     cc.filePos + ChunkHeaderSize + FourCCSize
   else:
-    cc.filePos + ChunkHeaderSize + roundToEven(cc.size.int64)
+    cc.filePos + ChunkHeaderSize + padToEven(cc.size.int64)
 
   rr.fs.setPosition(nextPos)
 
@@ -476,9 +489,11 @@ proc nextChunk*(rr): ChunkInfo =
 
 
 proc enterGroup*(rr) =
+  checkFileClosed()
   rr.doEnterGroup = true
 
 proc exitGroup*(rr) =
+  checkFileClosed()
   if rr.cursor.atRootChunk:
     raise newException(RiffReaderError, "Cannot exit root chunk")
 
@@ -523,123 +538,161 @@ proc openRiffFile*(filename: string, bufSize: int = -1): RiffReader =
   result = rr
 
 
-proc close*(rr) = rr.fs.close()
+proc close*(rr) =
+  checkFileClosed()
+  rr.fs.close()
+  rr.fs = nil
 
-#[
-proc setChunkPos*(rr; pos: int64, mode: FileSeekPos = fspSet) =
-  let chunkSize = rr.currChunk.size.int64
-  var newPos: int64
-  case mode
-  of fspSet: newPos = pos
-  of fspCur: newPos = rr.chunkPos + pos
-  of fspEnd: newPos = chunkSize - pos
 
-  if newPos < 0 or newPos > chunkSize-1:
+proc setChunkPos*(rr; pos: uint32, mode: ChunkSeekPos = cspSet) =
+  let cc = rr.currChunk
+  let currChunkPos = (rr.fs.getPosition() - cc.filePos).int64
+
+  var newPos = case mode
+  of cspSet: pos.int64
+  of cspCur: currChunkPos + pos.int64
+  of cspEnd: currChunkPos - pos.int64
+
+  if newPos < 0 or newPos >= cc.size:
     raise newException(RiffReaderError,
-                       "Cannot seek past the current chunk's bounds")
+      "Cannot seek past the bounds of the current chunk, " &
+      fmt"chunk size: {cc.size}, current chunk pos: {currChunkPos}, " &
+      fmt"new chunk pos: {newPos}")
 
-  rr.fs.setPosition(rr.currChunk.dataPos + ChunkHeaderSize + newPos)
-  rr.chunkPos = newPos
-]#
-
-
+  rr.fs.setPosition(cc.filePos + ChunkHeaderSize + newPos)
 
 # }}}
 # {{{ Writer
 
-#[
 type
   RiffWriter* = object
-    # private
+    fs:             FileStream
     chunkSize:      seq[int64]
-    chunkSizePos:   seq[int64]
+    chunkStartPos:  seq[int64]
     trackChunkSize: bool
+    inGroupChunk:   bool
 
   RiffWriterError* = object of Exception
 
-proc initRiffWriter*(): RiffWriter =
+using rw: RiffWriter
 
-func filename*(ww: RiffWriter): string {.inline.} =
-  ww.writer.filename
+func filename*(rw): string = rw.fs.filename
+func endian*(rw): Endianness = rw.fs.endian
 
-func endianness*(ww: RiffWriter): Endianness {.inline.} =
-  ww.writer.endianness
+proc checkFileClosed(rw) =
+  if rw.fs == nil:
+    raise newException(RiffWriterError, "File has been closed")
 
-proc checkFileClosed(ww: var RiffWriter) =
-  if ww.writer.file == nil:
-    raise newException(RiffWriterError, "File closed")
+proc incChunkSize(rw; numBytes: Natural) =
+  if rw.trackChunkSize:
+    inc(rw.chunkSize[^1], numBytes)
 
-proc incChunkSize(ww: var RiffWriter, numBytes: Natural) =
-  if ww.trackChunkSize and ww.chunkSize.len > 0:
-    inc(ww.chunkSize[ww.chunkSize.high], numBytes)
+proc write[T: SomeNumber](rw; value: T) =
+  checkFileClosed(rw)
+  rw.fs.write(value)
+  incChunkSize(rw, sizeof(T))
 
-template writeInternal(ww: var RiffWriter, numBytes: Natural, write: untyped) =
-  checkFileClosed(ww)
-  write
-  incChunkSize(ww, numBytes)
+proc write[T: SomeNumber](rw; buf: var openArray[T],
+                          startIndex, numValues: Natural) =
+  checkFileClosed(rw)
+  rw.fs.write(buf, startIndex, numValues)
+  incChunkSize(rw, numValues * sizeof(T))
 
-# TODO wrap binstreams write procs
+proc writeStr(rw; s: string) =
+  checkFileClosed(rw)
+  rw.fs.writeStr(s)
+  incChunkSize(rw, s.len)
 
-proc writeFourCC*(ww: var RiffWriter, fourCC: string) =
-  ww.writeInternal(4, ww.writer.writeString(fourCC, 4))
+proc writeFourCC*(rw; fourCC: string) =
+  assert fourCC.len == 4
+  checkFileClosed(rw)
+  rw.fs.writeStr(fourCC)
+  incChunkSize(rw, s.len)
+
+proc doBeginChunk(rw; id: string) =
+  rw.checkFileClosed()
+  rw.trackChunkSize = false
+
+  rw.chunkStartPos.add(fs.getPosition())
+  rw.chunkSize.add(0)
+  rw.writeFourCC(id)
+  rw.write(uint32, ChunkSizePlaceholder)  # endChunk() will update this
+
+  rw.trackChunkSize = true
+
+# TODO only list chunks should allow nesting
+proc beginChunk*(rw; id: string) =
+  if not rw.inGroupChunk:
+    raise newException(RiffWriterError,
+      "Only RIFF/RIFX and LIST chunk can have nested chunks")
+
+  if id == FourCC_RIFF or id == FourCC_RIFX o id == FourCC_LIST:
+    raise newException(RiffWriterError,
+      "Regular chunks cannot have this ID: {id}")
+
+  rw.doBeginChunk(id)
+  rw.inGroupChunk = false
 
 
-proc startChunk*(ww: var RiffWriter, id: string) =
-  ww.checkFileClosed()
-
-  ww.trackChunkSize = false
-
-  ww.writeFourCC(id)
-  ww.chunkSizePos.add(getFilePos(ww.writer.file))
-  ww.writeUInt32(0)  # endChunk() will update this with the correct value
-  ww.chunkSize.add(0)
-
-  ww.trackChunkSize = true
+proc beginListChunk*(rw) =
+  rw.doBeginChunk(FourCC_LIST)
+  rw.inGroupChunk = true
 
 
-proc endChunk*(ww: var RiffWriter) =
-  ww.checkFileClosed()
+proc endChunk*(rw) =
+  rw.checkFileClosed()
+  rw.trackChunkSize = false
 
-  ww.trackChunkSize = false
+  var chunkSize = rw.chunkSize.pop()
+  # Write pad byte if chunk size is odd
+  if chunkSize mod 2 > 0: rw.write(byte, 0)
 
-  var chunkSize = ww.chunkSize.pop()
-  if chunkSize mod 2 > 0:
-    ww.writeInt8(0)  # padding byte (chunks must contain even number of bytes)
-  setFilePos(ww.writer.file, ww.chunkSizePos.pop())
-  ww.writeUInt32(chunkSize.uint32)
-  setFilePos(ww.writer.file, 0, fspEnd)
+  # Write unpadded chunk size (could be odd)
+  rw.fs.setPosition(rw.chunkStartPos.pop() + FourCCSize)
+  rw.write(uint32, chunkSize.uint32)
+  rw.fs.setPosition(0, fspEnd)
 
   # Add real (potentially padded) chunk size to the parent chunk size
-  if ww.chunkSize.len > 0:
-    if chunkSize mod 2 > 0:
-      inc(chunkSize)
-    ww.chunkSize[ww.chunkSize.high] += chunkSize + ChunkHeaderSize
+  rw.chunkSize.add(padToEven(chunkSize) + ChunkHeaderSize)
 
-  ww.trackChunkSize = true
+  # Because nesting is not allowed for non-group chunks, ending a non-group
+  # chunk will always return us to a group chunk
+  if not rw.inGroupChunk:
+    rw.inGroupChunk = true
 
-
-proc writeRiffFile*(filename: string, bufSize: Natural = 4096,
-                    endianness = littleEndian): RiffWriter =
-  var ww = initRiffWriter()
-
-  ww.writer = createFile(filename, bufSize, endianness)
-
-  ww.chunkSize = newSeq[int64]()
-  ww.chunkSizePos = newSeq[int64]()
-  ww.trackChunkSize = false
-
-  case ww.writer.endianness:
-  of littleEndian: ww.startChunk(FourCC_RIFF_LE)
-  of bigEndian:    ww.startChunk(FourCC_RIFF_BE)
-
-  result = ww
+  rw.trackChunkSize = true
 
 
-proc close*(ww: var RiffWriter) =
-  ww.checkFileClosed()
-  ww.endChunk()
-  ww.writer.close()
-]#
+# TODO bufSize
+proc writeRiffFile*(filename: string, formTypeId: string,
+                    endianness = littleEndian, bufSize: int = -1): RiffWriter =
+  var rw = new RiffWriter
+  rw.fs = openFileStream(filename, littleEndian, fmWrite)
+  rw.writer = (filename, bufSize, endianness)
+
+  rw.chunkSize = newSeq[int64]()
+  rw.chunkStartPos = newSeq[int64]()
+  rw.trackChunkSize = false
+
+  let formId = case rw.writer.endianness:
+  of littleEndian: FourCC_RIFF
+  of bigEndian:    FourCC_RIFX
+
+  rw.doBeginChunk(formId)
+  # TODO validate form type
+  rw.writeFourCC(formTypeId)
+  rw.inGroupChunk = true
+
+  result = rw
+
+
+proc close*(rw) =
+  rw.checkFileClosed()
+  while rw.chunkSize.len > 0:
+    rw.endChunk()
+  rw.fs.close()
+  rw.fs = nil
+
 # }}}
 
 # vim: et:ts=2:sw=2:fdm=marker
