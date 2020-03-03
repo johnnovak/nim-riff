@@ -13,11 +13,11 @@ requires "nim >= 1.0.6"
 
 # Tasks
 
-#task examples, "Compiles the examples":
-#  exec "nim c -d:release examples/readtest.nim"
+task examples, "Compiles the examples":
+  exec "nim c -d:release examples/rifftool.nim"
 
-#task examplesDebug, "Compiles the examples (debug mode)":
-#  exec "nim c examples/readtest.nim"
+task examplesDebug, "Compiles the examples (debug mode)":
+  exec "nim c examples/rifftool.nim"
 
 task docgen, "Generate HTML documentation":
   exec "nim doc -o:doc/riff.html riff"
