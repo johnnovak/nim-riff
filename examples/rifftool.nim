@@ -1,5 +1,6 @@
-import os
 import options
+import os
+import strformat
 import strutils
 
 import riff
@@ -19,12 +20,12 @@ proc printChunks(infile: string) =
         walkChunks(depth+1)
     r.exitGroup()
 
-  echo r.currChunk
+  echo r.currentChunk
   walkChunks()
 
 
 proc recreateFile(infile, outfile: string,
-                  chunkIdsToSkip: Some[seq[ChunkInfo]]) =
+                  chunkIdsToSkip: Option[seq[string]]) =
 
   var r = openRiffFile(infile)
   var w = createRiffFile(outfile, r.formTypeId, r.endian)
@@ -78,7 +79,6 @@ proc extractChunk(infile, outfile: string, chunkId: string) =
         if ci.id == chunkId:
           return some(ci)
     r.exitGroup()
-    w.endChunk()
     return none(ChunkInfo)
 
   let res = findChunk(chunkId)
@@ -93,7 +93,8 @@ proc extractChunk(infile, outfile: string, chunkId: string) =
       while bytesLeft > 0:
         let bytesToCopy = min(bytesLeft, buf.len)
         r.read(buf, 0, bytesToCopy)
-        w.write(buf[0].addr, bytesToCopy)
+        if writeBuffer(w, buf[0].addr, bytesToCopy) != bytesToCopy:
+          quit fmt"Error writing file '{outfile}'"
         dec(bytesLeft, bytesToCopy)
 
     copyBytes(ci.size)
@@ -110,12 +111,10 @@ proc main() =
     recreate     = false        {.alias("r"), info("recreate file").}
 
     skipChunks:    seq[string]  {.alias("k"),
-                                  info("skip these chunks when recreating " &
-                                       "the file".}
+                                  info("skip these chunks when recreating the file").}
 
     extract:       string       {.alias("x"),
-                                  info("extract data from first chunk with " &
-                                       "this ID into a file").}
+                                  info("extract data from first chunk with this ID into a file").}
 
     infile:        string       {.bare, info("input file").}
     outfile:       string       {.bare, info("output file").}
@@ -133,7 +132,7 @@ proc main() =
     if not supplied.outfile:
       quit "Output file must be specified"
 
-    var chunkIdsToSkip = none(seq[ChunkInfo])
+    var chunkIdsToSkip = none(seq[string])
     if supplied.skipChunks:
       for chunkId in opts.skipChunks:
         if not validFourCC(chunkID):
@@ -154,7 +153,7 @@ proc main() =
       quit fmt"Chunk ID '{chunkId}' specified to extract is not " &
            "a valid RIFF FourCC"
 
-    extractChunk(infile, outfile, chunkId)
+    extractChunk(opts.infile, opts.outfile, chunkId)
 
   else:
     quit "Missing arguments, use -h for help"

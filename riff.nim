@@ -335,11 +335,13 @@ proc validFourCC*(fourCC: string, relaxed: bool = false): bool =
   return true
 
 proc fourCCToCharStr(fourCC: string): string =
+  result = "("
   for i in 0..3:
     let c = fourCC[i]
-    if c < ' ': result &= fmt"'\0x{($c).toHex}'"
+    if c < ' ': result &= fmt"'\{c.ord}'"
     else: result &= fmt"'{c}'"
     if i < 3: result &= ", "
+  result &= ")"
 
 # }}}
 # {{{ Reader
@@ -367,7 +369,7 @@ using rr: RiffReader
 func atRootChunk(rr): bool =
   rr.cursor.len == 1
 
-template currChunk(rr): ChunkInfo = c.cursor[^1]
+template currChunk(rr): ChunkInfo = rr.cursor[^1]
 
 func parentChunk(rr): ChunkInfo =
   if rr.atRootChunk(): rr.cursor[0] else: rr.cursor[^2]
@@ -397,12 +399,12 @@ func currentChunk*(rr): ChunkInfo =
 
 func cursor*(rr): Cursor =
   rr.checkState()
-  Cursor(deepCopy(rr.cursor), filePos = rr.fs.getPosition())
+  Cursor(path: deepCopy(rr.cursor), filePos: rr.fs.getPosition())
 
 func `cursor=`*(rr; c: Cursor) =
   rr.checkState()
   rr.cursor = c.path
-  rr.fs.setPosition((c.filePos)
+  rr.fs.setPosition(c.filePos)
   rr.doEnterGroup = false
 
 
@@ -538,37 +540,25 @@ proc readFormChunkHeader(rr): ChunkInfo =
   result = ci
 
 
-proc initRiffFile(rr) =
+proc init(rr) =
   rr.doCheckChunkLimits = false
   let ci = rr.readFormChunkHeader()
-  rr.path = newSeq[ChunkInfo]()
+  rr.cursor = newSeq[ChunkInfo]()
   rr.cursor.add(ci)
   rr.doCheckChunkLimits = true
-
   rr.enterGroup()
 
-
-# TODO file variant, bufsize
 proc openRiffFile*(filename: string, bufSize: int = -1): RiffReader =
   var rr = new RiffReader
-  rr.fs = openFileStream(filename, littleEndian)
-
+  rr.fs = openFileStream(filename, littleEndian, fmRead, bufSize)
+  rr.init()
   result = rr
 
-
-proc openRiffFile*(file: File, bufSize: int = -1): RiffReader =
+proc openRiffFile*(f: File, bufSize: int = -1): RiffReader =
   var rr = new RiffReader
-  rr.fs = openFileStream(file, littleEndian)
-
-  rr.doCheckChunkLimits = false
-  let ci = rr.readFormChunkHeader()
-  rr.path = newSeq[ChunkInfo]()
-  rr.cursor.add(ci)
-  rr.doCheckChunkLimits = true
-
-  rr.enterGroup()
+  rr.fs = newFileStream(f, littleEndian)
+  rr.init()
   result = rr
-
 
 proc close*(rr) =
   rr.checkState()
@@ -727,11 +717,10 @@ proc endChunk*(rw) =
     rw.trackChunkSize = true
 
 
-# TODO bufSize
 proc createRiffFile*(filename: string, formTypeId: string,
                      endian = littleEndian, bufSize: int = -1): RiffWriter =
   var rw = new RiffWriter
-  rw.fs = openFileStream(filename, endian, fmWrite)
+  rw.fs = openFileStream(filename, endian, fmWrite, bufSize)
 
   rw.cursor = newSeq[ChunkInfo]()
   rw.trackChunkSize = false
