@@ -311,8 +311,11 @@ type
   ChunkInfo* = object
     ## contains information about a chunk
     id*:      string  ## 4-char chunk ID
-    size*:    uint32  ## number of data bytes the chunk contains (not including the
-                      ## optional pad byte if the number of data bytes is odd)
+
+    size*:    uint32  ## number of data bytes the chunk contains (not
+                      ## including the optional pad byte if the number of data
+                      ## bytes is odd)
+
     filePos*: int64   ## file position of the chunk data (absolute position in
                       ## bytes from the start of the file)
 
@@ -321,63 +324,53 @@ type
     of ckChunk: discard
 
 
-proc validFourCC(fourCC: string, relaxed: bool = false): bool =
+proc validFourCC*(fourCC: string, relaxed: bool = false): bool =
   if fourCC.len != 4: return false
   var spaceFound = false
-  for i in 0..3:
+  for c in fourCC:
     if spaceFound:
-      if fourCC[i] != ' ': return false
-    elif fourCC[i] == ' ': spaceFound = true
-    elif not relaxed and not fourCC[i].isAlphaNumeric: return false
-    # TODO for IFF: 32-126, format types only alphanumeric
+      if c != ' ': return false
+    elif c == ' ': spaceFound = true
+    elif not relaxed and not c.isAlphaNumeric: return false
   return true
+
+proc fourCCToCharStr(fourCC: string): string =
+  for i in 0..3:
+    let c = fourCC[i]
+    if c < ' ': result &= fmt"'\0x{($c).toHex}'"
+    else: result &= fmt"'{c}'"
+    if i < 3: result &= ", "
 
 # }}}
 # {{{ Reader
 
 type
-  Cursor* = object
-    path: seq[ChunkInfo]
-
-func initCursor(c: var Cursor) =
-  c.path = newSeq[ChunkInfo]()
-
-func atRootChunk(c: Cursor): bool =
-  c.path.len == 1
-
-func currChunk(c: Cursor): ChunkInfo =
-  c.path[^1]
-
-func parentChunk(c: Cursor): ChunkInfo =
-  if c.atRootChunk(): c.path[0] else: c.path[^2]
-
-proc down(c: var Cursor, ci: ChunkInfo) =
-  c.path.add(ci)
-
-proc up(c: var Cursor) =
-  discard c.path.pop()
-
-proc replaceCurrent(c: var Cursor, ci: ChunkInfo) =
-  discard c.path.pop()
-  c.path.add(ci)
-
-
-type
   RiffReader* = ref object
     fs:                 FileStream
-    cursor:             Cursor
-    # TODO call funcs do
+    cursor:             seq[ChunkInfo]
     doEnterGroup:       bool
     doCheckChunkLimits: bool
     closed:             bool
 
   RiffReaderError* = object of Exception
 
-  ChunkSeekPos = enum
+  ChunkSeekPos* = enum
     cspSet, cspCur, cspEnd
 
+  Cursor* = object
+    path: seq[ChunkInfo]
+    filePos: int64
 
 using rr: RiffReader
+
+
+func atRootChunk(rr): bool =
+  rr.cursor.len == 1
+
+template currChunk(rr): ChunkInfo = c.cursor[^1]
+
+func parentChunk(rr): ChunkInfo =
+  if rr.atRootChunk(): rr.cursor[0] else: rr.cursor[^2]
 
 
 proc checkState(rr) =
@@ -396,26 +389,27 @@ func endian*(rr): Endianness =
 
 func formTypeId*(rr): string =
   rr.checkState()
-  rr.cursor.path[0].formatTypeId
+  rr.cursor[0].formatTypeId
 
-func currChunk*(rr): ChunkInfo =
+func currentChunk*(rr): ChunkInfo =
   rr.checkState()
-  rr.cursor.currChunk
+  rr.currChunk
 
 func cursor*(rr): Cursor =
   rr.checkState()
-  deepCopy(rr.cursor)
+  Cursor(deepCopy(rr.cursor), filePos = rr.fs.getPosition())
 
 func `cursor=`*(rr; c: Cursor) =
   rr.checkState()
-  rr.cursor = c
+  rr.cursor = c.path
+  rr.fs.setPosition((c.filePos)
   rr.doEnterGroup = false
 
 
 proc checkChunkLimits(rr; numBytes: Natural) =
   if not rr.doCheckChunkLimits: return
   let
-    pc = rr.cursor.parentChunk
+    pc = rr.parentChunk
     chunkPos = rr.fs.getPosition() - (pc.filePos + ChunkHeaderSize)
 
   if chunkPos + numBytes > pc.size.int64:
@@ -450,11 +444,11 @@ func padToEven(n: SomeInteger): SomeInteger =
 proc hasNextChunk*(rr): bool =
   rr.checkState()
   if rr.doEnterGroup:
-    return rr.cursor.currChunk.size > FourCCSize
+    return rr.currChunk.size > FourCCSize
   else:
     let
-      pc = rr.cursor.parentChunk
-      cc = rr.cursor.currChunk
+      pc = rr.parentChunk
+      cc = rr.currChunk
       parentEndPos = pc.filePos + ChunkHeaderSize + pc.size.int64
       currEndPos = cc.filePos + ChunkHeaderSize + padToEven(cc.size.int64)
 
@@ -468,7 +462,7 @@ proc nextChunk*(rr): ChunkInfo =
       "Cannot go to next chunk: " &
       "there are no more chunks in the current group")
 
-  let cc = rr.cursor.currChunk
+  let cc = rr.currChunk
   let nextPos = if rr.doEnterGroup:
     cc.filePos + ChunkHeaderSize + FourCCSize
   else:
@@ -478,8 +472,8 @@ proc nextChunk*(rr): ChunkInfo =
 
   let chunkId = rr.readFourCC()
   if not validFourCC(chunkId):
-    # TODO print fourCC by char
-    raise newException(RiffReaderError, fmt"Invalid chunk ID: {chunkId}")
+    raise newException(RiffReaderError,
+      fmt"Invalid chunk ID: {fourCCToCharStr(chunkId)}")
 
   var ci = if chunkId == FourCC_LIST:
     ChunkInfo(kind: ckGroup)
@@ -494,13 +488,14 @@ proc nextChunk*(rr): ChunkInfo =
     ci.formatTypeId = rr.readFourCC()
     if not validFourCC(ci.formatTypeId):
       raise newException(RiffReaderError,
-        fmt"Invalid format type ID: {ci.formatTypeId}")  # TODO print fourCC by char
+        fmt"Invalid format type ID: {fourCCToCharStr(ci.formatTypeId)}")
 
   if rr.doEnterGroup:
-    rr.cursor.down(ci)
+    rr.cursor.add(ci)
     rr.doEnterGroup = false
   else:
-    rr.cursor.replaceCurrent(ci)
+    discard rr.cursor.pop()
+    rr.cursor.add(ci)
 
   result = ci
 
@@ -511,14 +506,14 @@ proc enterGroup*(rr) =
 
 proc exitGroup*(rr) =
   rr.checkState()
-  if rr.cursor.atRootChunk:
+  if rr.atRootChunk:
     raise newException(RiffReaderError, "Cannot exit root chunk")
 
-  elif rr.cursor.parentChunk.kind == ckGroup:
-    rr.cursor.up()
+  elif rr.parentChunk.kind == ckGroup:
+    discard rr.cursor.pop()
   else:
     raise newException(RiffReaderError,
-      fmt"Cannot exit non-group chunk '{rr.cursor.currChunk.id}'")
+      fmt"Cannot exit non-group chunk '{rr.currChunk.id}'")
 
 
 proc readFormChunkHeader(rr): ChunkInfo =
@@ -529,17 +524,28 @@ proc readFormChunkHeader(rr): ChunkInfo =
   of FourCC_RIFF: rr.fs.endian = littleEndian
   of FourCC_RIFX: rr.fs.endian = bigEndian
   else:
-    raise newException(RiffReaderError, fmt"Unknown root chunk ID: {ci.id}")
+    raise newException(RiffReaderError,
+      fmt"Unknown root chunk ID: {fourCCToCharStr(ci.id)}")
 
-  ci.size = rr.read(uint32)  # TODO int32 for IFF
+  ci.size = rr.read(uint32)
   ci.filePos = 0
   ci.formatTypeId = rr.readFourCC()
 
   if not validFourCC(ci.formatTypeId):
     raise newException(RiffReaderError,
-      fmt"Invalid format type ID: {ci.formatTypeId}")  # TODO print fourCC by char
+      fmt"Invalid format type ID: {fourCCToCharStr(ci.formatTypeId)}")
 
   result = ci
+
+
+proc initRiffFile(rr) =
+  rr.doCheckChunkLimits = false
+  let ci = rr.readFormChunkHeader()
+  rr.path = newSeq[ChunkInfo]()
+  rr.cursor.add(ci)
+  rr.doCheckChunkLimits = true
+
+  rr.enterGroup()
 
 
 # TODO file variant, bufsize
@@ -547,10 +553,17 @@ proc openRiffFile*(filename: string, bufSize: int = -1): RiffReader =
   var rr = new RiffReader
   rr.fs = openFileStream(filename, littleEndian)
 
+  result = rr
+
+
+proc openRiffFile*(file: File, bufSize: int = -1): RiffReader =
+  var rr = new RiffReader
+  rr.fs = openFileStream(file, littleEndian)
+
   rr.doCheckChunkLimits = false
   let ci = rr.readFormChunkHeader()
-  initCursor(rr.cursor)
-  rr.cursor.down(ci)
+  rr.path = newSeq[ChunkInfo]()
+  rr.cursor.add(ci)
   rr.doCheckChunkLimits = true
 
   rr.enterGroup()
@@ -596,6 +609,7 @@ type
   RiffWriterError* = object of Exception
 
 using rw: RiffWriter
+
 
 proc checkState(rw) =
   if rw.closed: raise newException(RiffWriterError, "Writer has been closed")
@@ -652,7 +666,6 @@ proc doBeginChunk(rw; id: string) =
 
   rw.trackChunkSize = true
 
-# TODO only list chunks should allow nesting
 proc beginChunk*(rw; chunkId: string) =
   if not rw.inGroupChunk:
     raise newException(RiffWriterError,
@@ -660,7 +673,7 @@ proc beginChunk*(rw; chunkId: string) =
 
   if not validFourCC(chunkId):
     raise newException(RiffReaderError,
-      fmt"Invalid chunk ID: {chunkId}")  # TODO print fourCC by char
+      fmt"Invalid chunk ID: {fourCCToCharStr(chunkId)}")
 
   if chunkId == FourCC_RIFF or chunkId == FourCC_RIFX or
      chunkId == FourCC_LIST:
@@ -678,7 +691,7 @@ proc beginListChunk*(rw; formatTypeId: string) =
 
   if not validFourCC(formatTypeId):
     raise newException(RiffReaderError,
-      fmt"Invalid format type ID: {formatTypeId}")  # TODO print fourCC by char
+      fmt"Invalid format type ID: {fourCCToCharStr(formatTypeId)}")
 
   rw.doBeginChunk(FourCC_LIST)
   rw.writeFourCC(formatTypeId)
@@ -728,7 +741,11 @@ proc createRiffFile*(filename: string, formTypeId: string,
   of bigEndian:    FourCC_RIFX
 
   rw.doBeginChunk(formId)
-  # TODO validate form type
+
+  if not validFourCC(formTypeId):
+    raise newException(RiffReaderError,
+      fmt"Invalid form type ID: {fourCCToCharStr(formTypeId)}")
+
   rw.writeFourCC(formTypeId)
   rw.inGroupChunk = true
 
