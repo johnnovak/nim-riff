@@ -701,7 +701,7 @@ proc endChunk*(rw) =
   # Write unpadded chunk size (could be odd)
   rw.fs.setPosition(currChunk.filePos + FourCCSize)
   rw.write(currChunk.size.uint32)
-  rw.fs.setPosition(0, fspEnd)
+  rw.fs.setPosition(0, sspEnd)
 
   if rw.cursor.len == 0:
     rw.close()
