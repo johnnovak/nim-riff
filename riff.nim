@@ -7,8 +7,6 @@ import strformat
 import strutils
 import tables
 
-export tables
-
 
 # {{{ References
 # ==============
@@ -446,7 +444,7 @@ func padToEven(n: SomeInteger): SomeInteger =
 proc hasNextChunk*(rr): bool =
   rr.checkState()
   if rr.doEnterGroup:
-    return rr.currChunk.size > FourCCSize
+    return rr.currChunk.size.int > FourCCSize
   else:
     let
       pc = rr.parentChunk
@@ -696,16 +694,14 @@ proc endChunk*(rw) =
 
   var currChunk = rw.cursor.pop()
   # Write pad byte if chunk size is odd
-  if currChunk.size mod 2 > 0: rw.write(0'u8)
+  if currChunk.size.int mod 2 > 0: rw.write(0'u8)
 
   # Write unpadded chunk size (could be odd)
   rw.fs.setPosition(currChunk.filePos + FourCCSize)
   rw.write(currChunk.size.uint32)
   rw.fs.setPosition(0, sspEnd)
 
-  if rw.cursor.len == 0:
-    rw.close()
-  else:
+  if rw.cursor.len > 0:
     # Add real (potentially padded) chunk size to the parent chunk size
     rw.cursor[^1].size += padToEven(currChunk.size) + ChunkHeaderSize
 

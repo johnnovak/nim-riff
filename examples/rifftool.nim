@@ -24,8 +24,7 @@ proc printChunks(infile: string) =
   walkChunks()
 
 
-proc recreateFile(infile, outfile: string,
-                  chunkIdsToSkip: Option[seq[string]]) =
+proc recreateFile(infile, outfile: string) =
 
   var r = openRiffFile(infile)
   var w = createRiffFile(outfile, r.formTypeId, r.endian)
@@ -45,17 +44,15 @@ proc recreateFile(infile, outfile: string,
   proc walkChunks() =
     while r.hasNextChunk():
       let ci = r.nextChunk()
-      let skipChunk = if chunkIdsToSkip.isSome: ci.id in chunkIdsToSkip.get
-                      else: false
-      if not skipChunk:
-        if ci.kind == ckGroup:
-          w.beginListChunk(ci.formatTypeId)
-          r.enterGroup()
-          walkChunks()
-        else:
-          w.beginChunk(ci.id)
-          copyBytes(ci.size)
-          w.endChunk()
+      echo ci.id
+      if ci.kind == ckGroup:
+        w.beginListChunk(ci.formatTypeId)
+        r.enterGroup()
+        walkChunks()
+      else:
+        w.beginChunk(ci.id)
+        copyBytes(ci.size)
+        w.endChunk()
     r.exitGroup()
     w.endChunk()
 
@@ -74,7 +71,9 @@ proc extractChunk(infile, outfile: string, chunkId: string) =
       let ci = r.nextChunk()
       if ci.kind == ckGroup:
         r.enterGroup()
-        return findChunk(chunkId)
+        let ci = findChunk(chunkId)
+        if ci.isSome:
+          return ci
       else:
         if ci.id == chunkId:
           return some(ci)
@@ -110,9 +109,6 @@ proc main() =
     show         = false        {.alias("s"), info("show chunk tree").}
     recreate     = false        {.alias("r"), info("recreate file").}
 
-    skipChunks:    seq[string]  {.alias("k"),
-                                  info("skip these chunks when recreating the file").}
-
     extract:       string       {.alias("x"),
                                   info("extract data from first chunk with this ID into a file").}
 
@@ -132,15 +128,7 @@ proc main() =
     if not supplied.outfile:
       quit "Output file must be specified"
 
-    var chunkIdsToSkip = none(seq[string])
-    if supplied.skipChunks:
-      for chunkId in opts.skipChunks:
-        if not validFourCC(chunkID):
-          quit fmt"Chunk ID '{chunkId}' specified to skip is not " & 
-               "a valid RIFF FourCC"
-      chunkIdsToSkip = some(opts.skipChunks)
-
-    recreateFile(opts.infile, opts.outfile, chunkIdsToSkip)
+    recreateFile(opts.infile, opts.outfile)
 
   elif supplied.extract:
     if not supplied.infile:
