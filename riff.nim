@@ -58,8 +58,8 @@ import tables
 # {{{ Common
 
 const
-  FourCCSize = 4
-  ChunkHeaderSize = 8
+  FourCCSize* = 4
+  ChunkHeaderSize* = 8
   ChunkSizePlaceholder = 0xffffffff'u32
 
 const  # Top level chunk IDs
