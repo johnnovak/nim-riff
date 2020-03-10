@@ -332,7 +332,7 @@ proc validFourCC*(fourCC: string, relaxed: bool = false): bool =
     elif not relaxed and not c.isAlphaNumeric: return false
   return true
 
-proc fourCCToCharStr(fourCC: string): string =
+proc fourCCToCharStr*(fourCC: string): string =
   result = "("
   for i in 0..3:
     let c = fourCC[i]
