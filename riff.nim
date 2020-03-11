@@ -418,6 +418,26 @@ proc checkChunkLimits(rr; numBytes: Natural) =
       fmt"chunk size: {pc.size}, chunk pos: {chunkPos}, " &
       fmt"bytes to read: {numBytes}")
 
+
+proc setChunkPos*(rr; pos: uint32, mode: ChunkSeekPos = cspSet) =
+  rr.checkState()
+  let cc = rr.currChunk
+  let currChunkPos = (rr.fs.getPosition() - cc.filePos).int64
+
+  var newPos = case mode
+  of cspSet: pos.int64
+  of cspCur: currChunkPos + pos.int64
+  of cspEnd: currChunkPos - pos.int64
+
+  if newPos < 0 or newPos >= cc.size.int64:
+    raise newException(RiffReaderError,
+      "Cannot seek past the bounds of the current chunk, " &
+      fmt"chunk size: {cc.size}, current chunk pos: {currChunkPos}, " &
+      fmt"new chunk pos: {newPos}")
+
+  rr.fs.setPosition(cc.filePos + ChunkHeaderSize + newPos)
+
+
 proc read*(rr; T: typedesc[SomeNumber]): T =
   let numBytes = sizeof(T)
   checkChunkLimits(rr, numBytes)
@@ -429,10 +449,36 @@ proc read*[T: SomeNumber](rr; buf: var openArray[T],
   checkChunkLimits(rr, numBytes)
   rr.fs.read(buf, startIndex, numValues)
 
+proc readChar*(rr): char =
+  checkChunkLimits(rr, 1)
+  result = rr.fs.readChar()
+
 proc readStr*(rr; length: Natural): string =
-  let numBytes = length
-  checkChunkLimits(rr, numBytes)
+  checkChunkLimits(rr, length)
   result = rr.fs.readStr(length)
+
+proc readBStr*(rr): string =
+  let length = rr.read(uint8)
+  result = rr.readStr(length)
+
+proc readWStr*(rr): string =
+  let length = rr.read(uint16)
+  result = rr.readStr(length)
+
+proc readZStr*(rr): string =
+  result = ""
+  while true:
+    let c = rr.readChar()
+    if c == chr(0): return
+    result &= c
+
+proc readBZStr*(rr): string =
+  result = rr.readBZStr()
+  rr.setChunkPos(1, cspCur)
+
+proc readWZStr*(rr): string =
+  result = rr.readWZStr()
+  rr.setChunkPos(1, cspCur)
 
 proc readFourCC*(rr): string =
   rr.readStr(4)
@@ -564,25 +610,6 @@ proc close*(rr) =
   rr.fs = nil
   rr.closed = true
 
-
-proc setChunkPos*(rr; pos: uint32, mode: ChunkSeekPos = cspSet) =
-  rr.checkState()
-  let cc = rr.currChunk
-  let currChunkPos = (rr.fs.getPosition() - cc.filePos).int64
-
-  var newPos = case mode
-  of cspSet: pos.int64
-  of cspCur: currChunkPos + pos.int64
-  of cspEnd: currChunkPos - pos.int64
-
-  if newPos < 0 or newPos >= cc.size.int64:
-    raise newException(RiffReaderError,
-      "Cannot seek past the bounds of the current chunk, " &
-      fmt"chunk size: {cc.size}, current chunk pos: {currChunkPos}, " &
-      fmt"new chunk pos: {newPos}")
-
-  rr.fs.setPosition(cc.filePos + ChunkHeaderSize + newPos)
-
 # }}}
 # {{{ Writer
 
@@ -628,10 +655,41 @@ proc write*[T: SomeNumber](rw; buf: var openArray[T],
   rw.fs.write(buf, startIndex, numValues)
   incChunkSize(rw, numValues * sizeof(T))
 
+proc writeChar*(rw; c: char) =
+  checkState(rw)
+  rw.fs.writeChar(c)
+  incChunkSize(rw, 1)
+
 proc writeStr*(rw; s: string) =
   checkState(rw)
   rw.fs.writeStr(s)
   incChunkSize(rw, s.len)
+
+proc writeBStr*(rw; s: string) =
+  let length = max(s.len, high(uint8).int).uint8
+  rw.write(length)
+  var ss = s
+  setLen(ss, length)
+  rw.writeStr(ss)
+
+proc writeWStr*(rw; s: string) =
+  let length = max(s.len, high(uint16).int).uint16
+  rw.write(length)
+  var ss = s
+  setLen(ss, length)
+  rw.writeStr(ss)
+
+proc writeZStr*(rw; s: string) =
+  rw.writeStr(s)
+  rw.write(0'u8)
+
+proc writeBZStr*(rw; s: string) =
+  rw.writeBStr(s)
+  rw.write(0'u8)
+
+proc writeWZStr*(rw; s: string) =
+  rw.writeWStr(s)
+  rw.write(0'u8)
 
 proc writeFourCC*(rw; fourCC: string) =
   assert fourCC.len == 4
@@ -685,8 +743,6 @@ proc beginListChunk*(rw; formatTypeId: string) =
   rw.writeFourCC(formatTypeId)
   rw.inGroupChunk = true
 
-
-proc close*(rw)
 
 proc endChunk*(rw) =
   rw.checkState()
