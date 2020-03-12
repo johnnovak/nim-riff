@@ -352,7 +352,7 @@ type
     doCheckChunkLimits: bool
     closed:             bool
 
-  RiffReaderError* = object of Exception
+  RiffReadError* = object of Exception
 
   ChunkSeekPos* = enum
     cspSet, cspCur, cspEnd
@@ -374,9 +374,9 @@ func parentChunk(rr): ChunkInfo =
 
 
 proc checkState(rr) =
-  if rr.closed: raise newException(RiffReaderError, "Reader has been closed")
+  if rr.closed: raise newException(RiffReadError, "Reader has been closed")
   if rr.fs == nil:
-    raise newException(RiffReaderError,
+    raise newException(RiffReadError,
       "Reader has not been properly initialised")
 
 func filename*(rr): string =
@@ -413,7 +413,7 @@ proc checkChunkLimits(rr; numBytes: Natural) =
     chunkPos = rr.fs.getPosition() - (pc.filePos + ChunkHeaderSize)
 
   if chunkPos + numBytes > pc.size.int64:
-    raise newException(RiffReaderError,
+    raise newException(RiffReadError,
       "Cannot read past the end of the current group chunk, " &
       fmt"chunk size: {pc.size}, chunk pos: {chunkPos}, " &
       fmt"bytes to read: {numBytes}")
@@ -430,7 +430,7 @@ proc setChunkPos*(rr; pos: uint32, mode: ChunkSeekPos = cspSet) =
   of cspEnd: currChunkPos - pos.int64
 
   if newPos < 0 or newPos >= cc.size.int64:
-    raise newException(RiffReaderError,
+    raise newException(RiffReadError,
       "Cannot seek past the bounds of the current chunk, " &
       fmt"chunk size: {cc.size}, current chunk pos: {currChunkPos}, " &
       fmt"new chunk pos: {newPos}")
@@ -504,7 +504,7 @@ proc hasNextChunk*(rr): bool =
 proc nextChunk*(rr): ChunkInfo =
   rr.checkState()
   if not rr.hasNextChunk:
-    raise newException(RiffReaderError,
+    raise newException(RiffReadError,
       "Cannot go to next chunk: " &
       "there are no more chunks in the current group")
 
@@ -518,7 +518,7 @@ proc nextChunk*(rr): ChunkInfo =
 
   let chunkId = rr.readFourCC()
   if not validFourCC(chunkId):
-    raise newException(RiffReaderError,
+    raise newException(RiffReadError,
       fmt"Invalid chunk ID: {fourCCToCharStr(chunkId)}")
 
   var ci = if chunkId == FourCC_LIST:
@@ -533,7 +533,7 @@ proc nextChunk*(rr): ChunkInfo =
   if ci.kind == ckGroup:
     ci.formatTypeId = rr.readFourCC()
     if not validFourCC(ci.formatTypeId):
-      raise newException(RiffReaderError,
+      raise newException(RiffReadError,
         fmt"Invalid format type ID: {fourCCToCharStr(ci.formatTypeId)}")
 
   if rr.doEnterGroup:
@@ -553,12 +553,12 @@ proc enterGroup*(rr) =
 proc exitGroup*(rr) =
   rr.checkState()
   if rr.atRootChunk:
-    raise newException(RiffReaderError, "Cannot exit root chunk")
+    raise newException(RiffReadError, "Cannot exit root chunk")
 
   elif rr.parentChunk.kind == ckGroup:
     discard rr.cursor.pop()
   else:
-    raise newException(RiffReaderError,
+    raise newException(RiffReadError,
       fmt"Cannot exit non-group chunk '{rr.currChunk.id}'")
 
 
@@ -570,7 +570,7 @@ proc readFormChunkHeader(rr): ChunkInfo =
   of FourCC_RIFF: rr.fs.endian = littleEndian
   of FourCC_RIFX: rr.fs.endian = bigEndian
   else:
-    raise newException(RiffReaderError,
+    raise newException(RiffReadError,
       fmt"Unknown root chunk ID: {fourCCToCharStr(ci.id)}")
 
   ci.size = rr.read(uint32)
@@ -578,7 +578,7 @@ proc readFormChunkHeader(rr): ChunkInfo =
   ci.formatTypeId = rr.readFourCC()
 
   if not validFourCC(ci.formatTypeId):
-    raise newException(RiffReaderError,
+    raise newException(RiffReadError,
       fmt"Invalid format type ID: {fourCCToCharStr(ci.formatTypeId)}")
 
   result = ci
@@ -621,15 +621,15 @@ type
     inGroupChunk:   bool
     closed:         bool
 
-  RiffWriterError* = object of Exception
+  RiffWriteError* = object of Exception
 
 using rw: RiffWriter
 
 
 proc checkState(rw) =
-  if rw.closed: raise newException(RiffWriterError, "Writer has been closed")
+  if rw.closed: raise newException(RiffWriteError, "Writer has been closed")
   if rw.fs == nil:
-    raise newException(RiffWriterError,
+    raise newException(RiffWriteError,
       "Writer has not been properly initialised")
 
 func filename*(rw): string =
@@ -699,6 +699,7 @@ proc writeFourCC*(rw; fourCC: string) =
   rw.fs.writeStr(s)
   incChunkSize(rw, 4)
 
+
 proc doBeginChunk(rw; id: string) =
   rw.checkState()
   rw.trackChunkSize = false
@@ -712,18 +713,19 @@ proc doBeginChunk(rw; id: string) =
 
   rw.trackChunkSize = true
 
+
 proc beginChunk*(rw; chunkId: string) =
   if not rw.inGroupChunk:
-    raise newException(RiffWriterError,
+    raise newException(RiffWriteError,
       "Only RIFF, RIFX and LIST group chunks can contain subchunks")
 
   if not validFourCC(chunkId):
-    raise newException(RiffReaderError,
+    raise newException(RiffReadError,
       fmt"Invalid chunk ID: {fourCCToCharStr(chunkId)}")
 
   if chunkId == FourCC_RIFF or chunkId == FourCC_RIFX or
      chunkId == FourCC_LIST:
-    raise newException(RiffWriterError,
+    raise newException(RiffWriteError,
       "Regular chunks cannot have this ID: {chunkId}")
 
   rw.doBeginChunk(chunkId)
@@ -732,11 +734,11 @@ proc beginChunk*(rw; chunkId: string) =
 
 proc beginListChunk*(rw; formatTypeId: string) =
   if not rw.inGroupChunk:
-    raise newException(RiffWriterError,
+    raise newException(RiffWriteError,
       "Only RIFF, RIFX and LIST group chunks can contain subchunks")
 
   if not validFourCC(formatTypeId):
-    raise newException(RiffReaderError,
+    raise newException(RiffReadError,
       fmt"Invalid format type ID: {fourCCToCharStr(formatTypeId)}")
 
   rw.doBeginChunk(FourCC_LIST)
@@ -784,7 +786,7 @@ proc createRiffFile*(filename: string, formTypeId: string,
   rw.doBeginChunk(formId)
 
   if not validFourCC(formTypeId):
-    raise newException(RiffReaderError,
+    raise newException(RiffReadError,
       fmt"Invalid form type ID: {fourCCToCharStr(formTypeId)}")
 
   rw.writeFourCC(formTypeId)
