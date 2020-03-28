@@ -666,14 +666,14 @@ proc writeStr*(rw; s: string) =
   incChunkSize(rw, s.len)
 
 proc writeBStr*(rw; s: string) =
-  let length = min(s.len, high(uint8).int).uint8
+  let length = min(s.len, uint8.high.int).uint8
   rw.write(length)
   var ss = s
   setLen(ss, length)
   rw.writeStr(ss)
 
 proc writeWStr*(rw; s: string) =
-  let length = min(s.len, high(uint16).int).uint16
+  let length = min(s.len, uint16.high.int).uint16
   rw.write(length)
   var ss = s
   setLen(ss, length)
