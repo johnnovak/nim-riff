@@ -419,10 +419,13 @@ proc checkChunkLimits(rr; numBytes: Natural) =
       fmt"bytes to read: {numBytes}")
 
 
+proc getChunkPos*(rr): uint32 =
+  (rr.fs.getPosition() - rr.currChunk.filePos).uint32
+
 proc setChunkPos*(rr; pos: uint32, mode: ChunkSeekPos = cspSet) =
   rr.checkState()
   let cc = rr.currChunk
-  let currChunkPos = (rr.fs.getPosition() - cc.filePos).int64
+  let currChunkPos = rr.getChunkPos().int64
 
   var newPos = case mode
   of cspSet: pos.int64
