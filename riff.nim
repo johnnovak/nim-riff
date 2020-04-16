@@ -352,7 +352,7 @@ type
     doCheckChunkLimits: bool
     closed:             bool
 
-  RiffReadError* = object of Exception
+  RiffReadError* = object of IOError
 
   ChunkSeekPos* = enum
     cspSet, cspCur, cspEnd
@@ -624,7 +624,7 @@ type
     inGroupChunk:   bool
     closed:         bool
 
-  RiffWriteError* = object of Exception
+  RiffWriteError* = object of IOError
 
 using rw: RiffWriter
 
