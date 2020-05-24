@@ -351,6 +351,7 @@ type
     doEnterGroup:       bool
     doCheckChunkLimits: bool
     closed:             bool
+    currParentChunk:    ChunkInfo
 
   RiffReadError* = object of IOError
 
@@ -372,6 +373,13 @@ template currChunk(rr): ChunkInfo = rr.cursor[^1]
 func parentChunk(rr): ChunkInfo =
   if rr.atRootChunk(): rr.cursor[0] else: rr.cursor[^2]
 
+proc cursorPop(rr): ChunkInfo =
+  result = rr.cursor.pop()
+  rr.currParentChunk = rr.parentChunk
+
+proc cursorAdd(rr; ci: ChunkInfo) =
+  rr.cursor.add(ci)
+  rr.currParentChunk = rr.parentChunk
 
 proc checkState(rr) =
   if rr.closed: raise newException(RiffReadError, "Reader has been closed")
@@ -379,37 +387,38 @@ proc checkState(rr) =
     raise newException(RiffReadError,
       "Reader has not been properly initialised")
 
-func filename*(rr): string =
+proc filename*(rr): string =
   rr.checkState()
   rr.fs.filename
 
-func endian*(rr): Endianness =
+proc endian*(rr): Endianness =
   rr.checkState()
   rr.fs.endian
 
-func formTypeId*(rr): string =
+proc formTypeId*(rr): string =
   rr.checkState()
   rr.cursor[0].formatTypeId
 
-func currentChunk*(rr): ChunkInfo =
+proc currentChunk*(rr): ChunkInfo =
   rr.checkState()
   rr.currChunk
 
-func cursor*(rr): Cursor =
+proc cursor*(rr): Cursor =
   rr.checkState()
   Cursor(path: deepCopy(rr.cursor), filePos: rr.fs.getPosition())
 
-func `cursor=`*(rr; c: Cursor) =
+proc `cursor=`*(rr; c: Cursor) =
   rr.checkState()
   rr.cursor = c.path
+  rr.currParentChunk = rr.parentChunk
   rr.fs.setPosition(c.filePos)
   rr.doEnterGroup = false
 
 
-proc checkChunkLimits(rr; numBytes: Natural) =
+proc checkChunkLimits(rr: RiffReader, numBytes: Natural) {.inline.} =
   if not rr.doCheckChunkLimits: return
   let
-    pc = rr.parentChunk
+    pc = rr.currParentChunk
     chunkPos = rr.fs.getPosition() - (pc.filePos + ChunkHeaderSize)
 
   if chunkPos + numBytes > pc.size.int64:
@@ -540,11 +549,11 @@ proc nextChunk*(rr): ChunkInfo =
         fmt"Invalid format type ID: {fourCCToCharStr(ci.formatTypeId)}")
 
   if rr.doEnterGroup:
-    rr.cursor.add(ci)
+    rr.cursorAdd(ci)
     rr.doEnterGroup = false
   else:
-    discard rr.cursor.pop()
-    rr.cursor.add(ci)
+    discard rr.cursorPop()
+    rr.cursorAdd(ci)
 
   result = ci
 
@@ -559,7 +568,7 @@ proc exitGroup*(rr) =
     raise newException(RiffReadError, "Cannot exit root chunk")
 
   elif rr.parentChunk.kind == ckGroup:
-    discard rr.cursor.pop()
+    discard rr.cursorPop()
   else:
     raise newException(RiffReadError,
       fmt"Cannot exit non-group chunk '{rr.currChunk.id}'")
@@ -591,7 +600,7 @@ proc init(rr) =
   rr.doCheckChunkLimits = false
   let ci = rr.readFormChunkHeader()
   rr.cursor = newSeq[ChunkInfo]()
-  rr.cursor.add(ci)
+  rr.cursorAdd(ci)
   rr.doCheckChunkLimits = true
   rr.enterGroup()
 
