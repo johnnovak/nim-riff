@@ -9,7 +9,7 @@ skipDirs = @["doc", "examples"]
 
 # Dependencies
 
-requires "nim >= 1.0.6"
+requires "nim >= 1.2.6"
 
 # Tasks
 

@@ -2,7 +2,6 @@
 ##
 
 import binstreams
-import endians
 import strformat
 import strutils
 import tables
@@ -430,6 +429,9 @@ proc checkChunkLimits(rr: RiffReader, numBytes: Natural) {.inline.} =
 
 proc getChunkPos*(rr): uint32 =
   (rr.fs.getPosition() - rr.currChunk.filePos).uint32
+
+proc getFilePos*(rr): int64 =
+  rr.fs.getPosition()
 
 proc setChunkPos*(rr; pos: uint32, mode: ChunkSeekPos = cspSet) =
   rr.checkState()
