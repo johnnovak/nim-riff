@@ -11,21 +11,28 @@ proc printChunks(infile: string) =
   var r = openRiffFile(infile)
   defer: r.close()
 
-  proc walkChunks(depth: Natural = 1) =
-    while r.hasNextChunk():
-      let ci = r.nextChunk()
-      echo " ".repeat(depth*2), ci
-      if ci.kind == ckGroup:
-        r.enterGroup()
-        walkChunks(depth+1)
-    r.exitGroup()
+  proc walkChunks(depth: Natural = 0) =
+    let cc = r.currentChunk
+    echo " ".repeat(depth*2), cc
 
-  echo r.currentChunk
-  walkChunks()
+    if cc.kind == ckGroup:
+      if r.hasSubchunks:
+        discard r.enterGroup()
+        walkChunks(depth+1)
+        r.exitGroup()
+      else:
+        echo " ".repeat((depth+1)*2), "<empty>"
+
+    if r.hasNextChunk:
+      discard r.nextChunk()
+      walkChunks(depth)
+
+  #walkChunks()
+  for ci in r.walkChunks():
+    echo " ".repeat((r.cursor.path.len-1) * 2), ci
 
 
 proc recreateFile(infile, outfile: string) =
-
   var r = openRiffFile(infile)
   var w = createRiffFile(outfile, r.formTypeId, r.endian)
   defer:
@@ -41,24 +48,30 @@ proc recreateFile(infile, outfile: string) =
       w.write(buf, 0, bytesToCopy)
       dec(bytesLeft, bytesToCopy)
 
-  proc walkChunks() =
-    while r.hasNextChunk():
-      let ci = r.nextChunk()
-      echo ci.id
-      if ci.kind == ckGroup:
-        w.beginListChunk(ci.formatTypeId)
-        r.enterGroup()
-        walkChunks()
-      else:
-        w.beginChunk(ci.id)
-        copyBytes(ci.size)
-        w.endChunk()
-    r.exitGroup()
-    w.endChunk()
+  proc walkChunks(depth: Natural = 0) =
+    let cc = r.currentChunk
 
-  walkChunks()
+    if cc.kind == ckGroup:
+      w.beginListChunk(cc.formatTypeId)
+      if r.hasSubchunks:
+        discard r.enterGroup()
+        walkChunks(depth+1)
+        r.exitGroup()
+      w.endChunk()
+    else:
+      w.beginChunk(cc.id)
+      copyBytes(cc.size)
+      w.endChunk()
 
+    if r.hasNextChunk:
+      discard r.nextChunk()
+      walkChunks(depth)
 
+  if r.hasSubchunks:
+    discard r.enterGroup()
+    walkChunks()
+
+#[
 proc extractChunk(infile, outfile: string, chunkId: string) =
   var r = openRiffFile(infile)
   var w = open(outfile, fmWrite)
@@ -80,6 +93,23 @@ proc extractChunk(infile, outfile: string, chunkId: string) =
     r.exitGroup()
     return none(ChunkInfo)
 
+  proc findChunk(chunkId: string): Option[ChunkInfo] =
+    let cc = r.currentChunk
+    echo " ".repeat(depth*2), cc
+
+    if cc.kind == ckGroup:
+      if r.hasSubchunks():
+        discard r.enterGroup()
+        walkChunks(depth+1)
+        r.exitGroup()
+      else:
+        echo " ".repeat((depth+1)*2), "<empty>"
+
+    if r.hasNextChunk():
+      discard r.nextChunk()
+      walkChunks(depth)
+
+
   let res = findChunk(chunkId)
   if res.isNone:
     quit fmt"Could not find chunk '{chunkId}' in input file"
@@ -97,7 +127,7 @@ proc extractChunk(infile, outfile: string, chunkId: string) =
         dec(bytesLeft, bytesToCopy)
 
     copyBytes(ci.size)
-
+]#
 
 proc main() =
   simple_parseopt.command_name("rifftool")
@@ -129,7 +159,7 @@ proc main() =
       quit "Output file must be specified"
 
     recreateFile(opts.infile, opts.outfile)
-
+#[
   elif supplied.extract:
     if not supplied.infile:
       quit "Input file must be specified"
@@ -142,7 +172,7 @@ proc main() =
            "a valid RIFF FourCC"
 
     extractChunk(opts.infile, opts.outfile, chunkId)
-
+]#
   else:
     quit "Missing arguments, use -h for help"
 

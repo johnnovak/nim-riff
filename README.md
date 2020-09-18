@@ -101,11 +101,14 @@ The `currentChunk()` method returns information about the current chunk as
 a `ChunkInfo` object, which has the following fields:
 
 * `id` *string* – 4-char chunk ID (FourCC)
+
 * `size` *uint32* – chunk data length in bytes (not including the 8-byte
    chunk headers and the optional padding byte if the length is odd)
 
 * `filePos` *int64* – absolute file position of the first byte of the chunk
+
 * `kind` *ChunkKind* – `ckGroup` for group chunks (`RIFF` and `LIST`), `ckChunk` for normal chunks
+
 * `formatTypeId` *string* – for group chunks only: format type FourCC of the group
 
 `nextChunk()` moves the cursor to the next chunk within the current group
@@ -227,8 +230,8 @@ r.readChar()          # read a char
 r.readFourCC()        # read a FourCC as a string
 r.readStr(length=10)  # read the next 10 bytes as a string
 
-r.readBStr()    # read a Pascal-style string
-                # (one `length` leading byte followed by `length` bytes of character data)
+r.readBStr()    # read a Pascal-style string # (one `length` leading
+                # byte followed by `length` bytes of character data)
 
 r.readWStr()    # read a Pascal-style string
                 # (16-bit (word) leading `length` value)
@@ -254,13 +257,10 @@ r.cursor = cur        # restore a cursor
 ```
 
 
-
-
 ### Writing RIFF files
 
+TODO
 
-
-**Work in progress, not ready for public use yet!**
 
 ## References & reading materials
 
@@ -309,7 +309,7 @@ https://docs.microsoft.com/en-us/windows/win32/directshow/avi-riff-file-referenc
 
 ## License
 
-Copyright © 2020 John Novak <<john@johnnovak.net>>
+Copyright © 2019-2020 John Novak <<john@johnnovak.net>>
 
 This work is free. You can redistribute it and/or modify it under the terms of
 the [Do What The Fuck You Want To Public License, Version 2](http://www.wtfpl.net/), as published
