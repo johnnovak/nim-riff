@@ -527,12 +527,6 @@ proc `cursor=`*(rr; c: Cursor) =
   rr.currParentChunk = rr.parentChunk
   rr.fs.setPosition(c.filePos)
 
-proc depth*(c: Cursor): Natural =
-  c.path.len
-
-proc last*(c: Cursor): ChunkInfo =
-  c.path[^1]
-
 
 proc read*(rr; T: typedesc[SomeNumber]): T =
   ## Reads a numeric value; the type needs to be passed in as an argument.
@@ -630,7 +624,7 @@ proc readBZStr*(rr): string =
   ## if an attempt has been made to read past the end of the chunk.
   ##
   ## Raises an `IOError` on read errors.
-  result = rr.readBZStr()
+  result = rr.readBStr()
   rr.setChunkPos(1, cspCur)
 
 proc readWZStr*(rr): string =
@@ -642,7 +636,7 @@ proc readWZStr*(rr): string =
   ## if an attempt has been made to read past the end of the chunk.
   ##
   ## Raises an `IOError` on read errors.
-  result = rr.readWZStr()
+  result = rr.readWStr()
   rr.setChunkPos(1, cspCur)
 
 proc readFourCC*(rr): string =
@@ -774,11 +768,11 @@ proc exitGroup*(rr) =
 
 
 # TODO ignore/allow lists
-iterator walkChunks*(rr): Cursor {.closure.} =
+iterator walkChunks*(rr): ChunkInfo {.closure.} =
   let startCur = rr.cursor()
   let startDepth = rr.path.len
   var ci = rr.currentChunk
-  yield rr.cursor
+  yield ci
 
   if ci.kind == ckChunk or
      ci.kind == ckGroup and rr.hasSubchunks:
@@ -786,12 +780,12 @@ iterator walkChunks*(rr): Cursor {.closure.} =
       while true:
         if ci.kind == ckGroup and rr.hasSubchunks:
           ci = rr.enterGroup()
-          yield rr.cursor
+          yield ci
         else:
           block next:
             if rr.hasNextChunk:
               ci = rr.nextChunk()
-              yield rr.cursor
+              yield ci
             else:
               if rr.path.len == startDepth: break main
               else:
@@ -887,17 +881,18 @@ using rw: RiffWriter
 
 proc checkState(rw) =
   if rw.closed: raise newException(RiffWriteError, "Writer has been closed")
-  if rw.fs == nil:
-    raise newException(RiffWriteError,
-      "Writer has not been properly initialised")
 
 func filename*(rw): string =
+  ## Returns the name of the file associated with the reader. If the
+  ## reader was initialised from a file handle, the filename will be an
+  ## empty string.
   ##
   ## Raises a `RiffReadError` if the writer is closed or not initialised.
   rw.checkState()
   rw.fs.filename
 
 func endian*(rw): Endianness =
+  ## Returns the endianness of the RIFF file associated with the reader.
   ##
   ## Raises a `RiffReadError` if the writer is closed or not initialised.
   rw.checkState()

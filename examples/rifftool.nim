@@ -11,6 +11,14 @@ proc printChunks(infile: string) =
   var r = openRiffFile(infile)
   defer: r.close()
 
+  for ci in r.walkChunks():
+    echo " ".repeat((r.cursor.path.len-1) * 2), ci
+
+
+proc printChunksRecursive(infile: string) =
+  var r = openRiffFile(infile)
+  defer: r.close()
+
   proc walkChunks(depth: Natural = 0) =
     let cc = r.currentChunk
     echo " ".repeat(depth*2), cc
@@ -27,9 +35,7 @@ proc printChunks(infile: string) =
       discard r.nextChunk()
       walkChunks(depth)
 
-  #walkChunks()
-  for ci in r.walkChunks():
-    echo " ".repeat((r.cursor.path.len-1) * 2), ci
+  walkChunks()
 
 
 proc recreateFile(infile, outfile: string) =
@@ -136,14 +142,15 @@ proc main() =
     dash_dash_parameters.no_slash
 
   let (opts, supplied) = get_options_and_supplied:
-    show         = false        {.alias("s"), info("show chunk tree").}
-    recreate     = false        {.alias("r"), info("recreate file").}
+    show          = false  {.alias("s"), info("show chunk tree").}
+    showRecursive = false  {.alias("S"), info("show chunk tree (recursive)").}
+    recreate      = false  {.alias("r"), info("recreate file").}
 
-    extract:       string       {.alias("x"),
-                                  info("extract data from first chunk with this ID into a file").}
+    extract:       string  {.alias("x"),
+                            info("extract data from first chunk with this ID into a file").}
 
-    infile:        string       {.bare, info("input file").}
-    outfile:       string       {.bare, info("output file").}
+    infile:        string  {.bare, info("input file").}
+    outfile:       string  {.bare, info("output file").}
 
 
   if opts.show:
@@ -151,6 +158,12 @@ proc main() =
       quit "Input file must be specified"
 
     printChunks(opts.infile)
+
+  elif opts.showRecursive:
+    if not supplied.infile:
+      quit "Input file must be specified"
+
+    printChunksRecursive(opts.infile)
 
   elif opts.recreate:
     if not supplied.infile:

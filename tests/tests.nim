@@ -115,35 +115,35 @@ proc createTestFile(filename: string, endian: Endianness) =
 
 
 createTestFile(TestFileLE, littleEndian)
-#createTestFile(TestFileBE, bigEndian)
+createTestFile(TestFileBE, bigEndian)
 
 # }}}
 
 suite "Helpers":
-  test "validFourCC - strict":
-    assert validFourCC("RIFF")
-    assert validFourCC("lst ")
-    assert validFourCC("hDR1")
-    assert validFourCC("1234")
-    assert validFourCC("    ")
+  test "validFourCC() - strict":
+    check validFourCC("RIFF")
+    check validFourCC("lst ")
+    check validFourCC("hDR1")
+    check validFourCC("1234")
+    check validFourCC("    ")
 
-    assert not validFourCC("")
-    assert not validFourCC(" ")
-    assert not validFourCC("RIFF ")
-    assert not validFourCC("A BC")
-    assert not validFourCC(" ABC")
-    assert not validFourCC("MOD!")
-    assert not validFourCC("$hdr")
-    assert not validFourCC("XM-1")
+    check not validFourCC("")
+    check not validFourCC(" ")
+    check not validFourCC("RIFF ")
+    check not validFourCC("A BC")
+    check not validFourCC(" ABC")
+    check not validFourCC("MOD!")
+    check not validFourCC("$hdr")
+    check not validFourCC("XM-1")
 
-  test "validFourCC - relaxed":
-    assert validFourCC("MOD!", relaxed=true)
-    assert validFourCC("$hdr", relaxed=true)
-    assert validFourCC("XM-1", relaxed=true)
+  test "validFourCC() - relaxed":
+    check validFourCC("MOD!", relaxed=true)
+    check validFourCC("$hdr", relaxed=true)
+    check validFourCC("XM-1", relaxed=true)
 
-  test "fourCCToCharStr":
-    assert fourCCToCharStr("RIFF") == "('R', 'I', 'F', 'F')"
-    assert fourCCToCharStr("A#\27 ") == "('A', '#', '\\27', ' ')"
+  test "fourCCToCharStr()":
+    check fourCCToCharStr("RIFF") == "('R', 'I', 'F', 'F')"
+    check fourCCToCharStr("A#\27 ") == "('A', '#', '\\27', ' ')"
 
 #[
 proc filename*(rr): string =
@@ -178,286 +178,436 @@ proc close*(rr) =
 # {{{ WaveReader
 suite "WaveReader":
 
-  # {{{ open a file using a filename
-  test "open a file using a filename":
+  # {{{ create reader from filename - LE
+  test "create reader from filename - LE":
     var r = openRiffFile(TestFileLE)
-    assert r.filename == TestFileLE
-    assert r.endian == littleEndian
-    assert r.formTypeId == TestFormTypeID
+    check r.filename == TestFileLE
+    check r.endian == littleEndian
+    check r.formTypeId == TestFormTypeID
 
     let ci = r.currentChunk()
-    assert ci.id == FourCC_RIFF
-    assert ci.size == 57762
-    assert ci.filePos == 0
-    assert ci.kind == ckGroup
-    assert ci.formatTypeId == TestFormTypeID
+    check ci.id == FourCC_RIFF
+    check ci.size == 57762
+    check ci.filePos == 0
+    check ci.kind == ckGroup
+    check ci.formatTypeId == TestFormTypeID
+
+    r.close()
+
+  # }}}
+  # {{{ create reader from filename - BE
+  test "create reader from filename - BE":
+    var r = openRiffFile(TestFileBE)
+    check r.filename == TestFileBE
+    check r.endian == bigEndian
+    check r.formTypeId == TestFormTypeID
+
+    let ci = r.currentChunk()
+    check ci.id == FourCC_RIFX
+    check ci.size == 57762
+    check ci.filePos == 0
+    check ci.kind == ckGroup
+    check ci.formatTypeId == TestFormTypeID
+
+    r.close()
+
+  # }}}
+  # {{{ create reader file handle - LE
+  test "create reader file handle - LE":
+    var f = open(TestFileLE)
+    var r = openRiffFile(f)
+    check r.filename == ""
+    check r.endian == littleEndian
+    check r.formTypeId == TestFormTypeID
+
+    let ci = r.currentChunk()
+    check ci.id == FourCC_RIFF
+    check ci.size == 57762
+    check ci.filePos == 0
+    check ci.kind == ckGroup
+    check ci.formatTypeId == TestFormTypeID
+
+    r.close()
+
+  # }}}
+  # {{{ create reader file handle - BE
+  test "create reader file handle - BE":
+    var f = open(TestFileBE)
+    var r = openRiffFile(f)
+    check r.filename == ""
+    check r.endian == bigEndian
+    check r.formTypeId == TestFormTypeID
+
+    let ci = r.currentChunk()
+    check ci.id == FourCC_RIFX
+    check ci.size == 57762
+    check ci.filePos == 0
+    check ci.kind == ckGroup
+    check ci.formatTypeId == TestFormTypeID
 
     r.close()
 
   # }}}
   # {{{ iterate through all top-level chunks
-  test "iterate through all top-level chunks":
-    var r = openRiffFile(TestFileLE)
+  template iterateTopLevelChunks(fname: string) =
+    var r = openRiffFile(fname)
 
-    var ci = r.currentChunk
-    assert ci.id == FourCC_RIFF
-    assert ci.size == 57762
-    assert ci.filePos == 0
-    assert ci.kind == ckGroup
-    assert ci.formatTypeId == TestFormTypeID
+    check r.hasSubchunks()
+    var ci = r.enterGroup()
+    check ci.id == FourCC_LIST
+    check ci.size == 4
+    check ci.filePos == 12
+    check ci.kind == ckGroup
+    check ci.formatTypeId == "G1  "
 
-    assert r.hasSubchunks()
-    ci = r.enterGroup()
-    assert ci.id == FourCC_LIST
-    assert ci.size == 4
-    assert ci.filePos == 12
-    assert ci.kind == ckGroup
-    assert ci.formatTypeId == "G1  "
-
-    assert r.hasNextChunk()
+    check r.hasNextChunk()
     ci = r.nextChunk()
-    assert ci.id == FourCC_LIST
-    assert ci.size == 78
-    assert ci.filePos == 24
-    assert ci.kind == ckGroup
-    assert ci.formatTypeId == "INFO"
+    check ci.id == FourCC_LIST
+    check ci.size == 78
+    check ci.filePos == 24
+    check ci.kind == ckGroup
+    check ci.formatTypeId == "INFO"
 
-    assert r.hasNextChunk()
+    check r.hasNextChunk()
     ci = r.nextChunk()
-    assert ci.id == FourCC_LIST
-    assert ci.size == 196
-    assert ci.filePos == 110
-    assert ci.kind == ckGroup
-    assert ci.formatTypeId == "G2  "
+    check ci.id == FourCC_LIST
+    check ci.size == 196
+    check ci.filePos == 110
+    check ci.kind == ckGroup
+    check ci.formatTypeId == "G2  "
 
-    assert r.hasNextChunk()
+    check r.hasNextChunk()
     ci = r.nextChunk()
-    assert ci.id == "JUNK"
-    assert ci.size == 1000
-    assert ci.filePos == 314
-    assert ci.kind == ckChunk
+    check ci.id == "JUNK"
+    check ci.size == 1000
+    check ci.filePos == 314
+    check ci.kind == ckChunk
 
-    assert r.hasNextChunk()
+    check r.hasNextChunk()
     ci = r.nextChunk()
-    assert ci.id == FourCC_LIST
-    assert ci.size == 56440
-    assert ci.filePos == 1322
-    assert ci.kind == ckGroup
-    assert ci.formatTypeId == "G3  "
+    check ci.id == FourCC_LIST
+    check ci.size == 56440
+    check ci.filePos == 1322
+    check ci.kind == ckGroup
+    check ci.formatTypeId == "G3  "
 
-    assert not r.hasNextChunk()
+    check not r.hasNextChunk()
 
     r.close()
 
-  # }}}
-  # {{{ enter/exist empty LIST chunks
-  test "enter/exit empty LIST chunks":
-    var r = openRiffFile(TestFileLE)
-    var ci: ChunkInfo
 
-    assert r.hasSubchunks()
-    ci = r.enterGroup()
-    assert ci.id == FourCC_LIST
-    assert ci.formatTypeId == "G1  "
+  test "iterate through all top-level chunks (LE)":
+    iterateTopLevelChunks(TestFileLE)
 
-    assert not r.hasSubchunks()
-
-    assert r.hasNextChunk()
-    ci = r.nextChunk()
-    assert ci.id == FourCC_LIST
-    assert ci.formatTypeId == "INFO"
+  test "iterate through all top-level chunks (BE)":
+    iterateTopLevelChunks(TestFileBE)
 
   # }}}
   # {{{ iterate through all chunks
-  test "iterate through all chunks":
-    var r = openRiffFile(TestFileLE)
-
-    var ci = r.currentChunk
-    assert ci.id == FourCC_RIFF
-    assert ci.size == 57762
-    assert ci.filePos == 0
-    assert ci.kind == ckGroup
-    assert ci.formatTypeId == TestFormTypeID
+  template iterateAllChunks(fname: string) =
+    var r = openRiffFile(fname)
+    var ci: ChunkInfo
 
     block: # G1
-      assert r.hasSubchunks()
+      check r.hasSubchunks()
       ci = r.enterGroup()
-      assert ci.id == FourCC_LIST
-      assert ci.formatTypeId == "G1  "
+      check ci.id == FourCC_LIST
+      check ci.formatTypeId == "G1  "
 
-      assert not r.hasSubchunks()
+      check not r.hasSubchunks()
 
     block: # INFO
-      assert r.hasNextChunk()
+      check r.hasNextChunk()
       ci = r.nextChunk()
-      assert ci.id == FourCC_LIST
-      assert ci.formatTypeId == "INFO"
+      check ci.id == FourCC_LIST
+      check ci.formatTypeId == "INFO"
 
-      assert r.hasSubchunks()
+      check r.hasSubchunks()
       ci = r.enterGroup()
-      assert ci.id == "ICOP"
+      check ci.id == "ICOP"
 
-      assert r.hasNextChunk()
+      check r.hasNextChunk()
       ci = r.nextChunk()
-      assert ci.id == "IART"
+      check ci.id == "IART"
 
-      assert r.hasNextChunk()
+      check r.hasNextChunk()
       ci = r.nextChunk()
-      assert ci.id == "ICMT"
+      check ci.id == "ICMT"
 
-      assert not r.hasNextChunk()
+      check not r.hasNextChunk()
       r.exitGroup()
 
     block: # G2
       ci = r.nextChunk()
-      assert ci.id == FourCC_LIST
-      assert ci.formatTypeId == "G2  "
+      check ci.id == FourCC_LIST
+      check ci.formatTypeId == "G2  "
 
-      assert r.hasSubchunks()
+      check r.hasSubchunks()
       ci = r.enterGroup()
-      assert ci.id == "emp1"
+      check ci.id == "emp1"
 
-      assert r.hasNextChunk()
+      check r.hasNextChunk()
       ci = r.nextChunk()
-      assert ci.id == "num "
+      check ci.id == "num "
 
       block: # G21
-        assert r.hasNextChunk()
+        check r.hasNextChunk()
         ci = r.nextChunk()
-        assert ci.id == FourCC_List
-        assert ci.formatTypeId == "G21 "
+        check ci.id == FourCC_List
+        check ci.formatTypeId == "G21 "
 
-        assert r.hasSubchunks()
+        check r.hasSubchunks()
         ci = r.enterGroup()
-        assert ci.id == "str "
+        check ci.id == "str "
 
-        assert not r.hasNextChunk()
+        check not r.hasNextChunk()
         r.exitGroup()
 
       r.exitGroup()
 
     # JUNK
-    assert r.hasNextChunk()
+    check r.hasNextChunk()
     ci = r.nextChunk()
-    assert ci.id == "JUNK"
+    check ci.id == "JUNK"
 
     block: # G3
-      assert r.hasNextChunk()
+      check r.hasNextChunk()
       ci = r.nextChunk()
-      assert ci.id == FourCC_LIST
-      assert ci.formatTypeId == "G3  "
+      check ci.id == FourCC_LIST
+      check ci.formatTypeId == "G3  "
 
-      assert not r.hasNextChunk()
+      check not r.hasNextChunk()
 
-      assert r.hasSubchunks()
+      check r.hasSubchunks()
       ci = r.enterGroup()
-      assert ci.id == "buf "
+      check ci.id == "buf "
 
-      assert not r.hasNextChunk()
+      check not r.hasNextChunk()
       r.exitGroup()
 
-    assert not r.hasNextChunk()
+    check not r.hasNextChunk()
     r.close()
+
+
+  test "iterate through all chunks - LE":
+    iterateAllChunks(TestFileLE)
+
+  test "iterate through all chunks - BE":
+    iterateAllChunks(TestFileBE)
+
+  # }}}
+  # {{{ enter/exit empty group chunk
+  template enterExistEmptyGroupChunk(fname: string) =
+    var r = openRiffFile(fname)
+    var ci: ChunkInfo
+
+    check r.hasSubchunks()
+    ci = r.enterGroup()
+    check ci.id == FourCC_LIST
+    check ci.formatTypeId == "G1  "
+
+    check not r.hasSubchunks()
+
+    check r.hasNextChunk()
+    ci = r.nextChunk()
+    check ci.id == FourCC_LIST
+    check ci.formatTypeId == "INFO"
+
+  test "enter/exit empty group chunk - LE":
+    enterExistEmptyGroupChunk(TestFileLE)
+
+  test "enter/exit empty group chunk - BE":
+    enterExistEmptyGroupChunk(TestFileBE)
 
   # }}}
   # {{{ walkChunk() - all chunks
-  test "walkChunk() - all chunks":
-    var r = openRiffFile(TestFileLE)
+  template walkChunkAll(fname, formId: string) =
+    var r = openRiffFile(fname)
 
     var cur = toSeq(r.walkChunks)
 
-    assert cur.len == 14
+    check cur.len == 14
 
-    assert cur[0].last.id == FourCC_RIFF
-    assert cur[0].last.kind == ckGroup
-    assert cur[0].last.formatTypeId == TestFormTypeID
+    check cur[0].id == formId
+    check cur[0].kind == ckGroup
+    check cur[0].formatTypeId == TestFormTypeID
 
-    assert cur[1].last.kind == ckGroup
-    assert cur[1].last.formatTypeId == "G1  "
+    check cur[1].kind == ckGroup
+    check cur[1].formatTypeId == "G1  "
 
-    assert cur[2].last.kind == ckGroup
-    assert cur[2].last.formatTypeId == FourCC_INFO
+    check cur[2].kind == ckGroup
+    check cur[2].formatTypeId == FourCC_INFO
 
-    assert cur[3].last.id == FourCC_INFO_ICOP
-    assert cur[4].last.id == FourCC_INFO_IART
-    assert cur[5].last.id == FourCC_INFO_ICMT
+    check cur[3].id == FourCC_INFO_ICOP
+    check cur[4].id == FourCC_INFO_IART
+    check cur[5].id == FourCC_INFO_ICMT
 
-    assert cur[6].last.kind == ckGroup
-    assert cur[6].last.formatTypeId == "G2  "
+    check cur[6].kind == ckGroup
+    check cur[6].formatTypeId == "G2  "
 
-    assert cur[7].last.id == "emp1"
-    assert cur[8].last.id == "num "
+    check cur[7].id == "emp1"
+    check cur[8].id == "num "
 
-    assert cur[9].last.kind == ckGroup
-    assert cur[9].last.formatTypeId == "G21 "
+    check cur[9].kind == ckGroup
+    check cur[9].formatTypeId == "G21 "
 
-    assert cur[10].last.id == "str "
+    check cur[10].id == "str "
 
-    assert cur[11].last.id == "JUNK"
+    check cur[11].id == "JUNK"
 
-    assert cur[12].last.kind == ckGroup
-    assert cur[12].last.formatTypeId == "G3  "
+    check cur[12].kind == ckGroup
+    check cur[12].formatTypeId == "G3  "
 
-    assert cur[13].last.id == "buf "
+    check cur[13].id == "buf "
 
     r.close()
+
+
+  test "walkChunk() - all chunks - LE":
+    walkChunkAll(TestFileLE, FourCC_RIFF)
+
+  test "walkChunk() - all chunks - BE":
+    walkChunkAll(TestFileBE, FourCC_RIFX)
 
   # }}}
   # {{{ walkChunk() - subtrees
-  test "walkChunk() - subtrees":
-    var r = openRiffFile(TestFileLE)
+  template walkChunkSubtrees(fname: string) =
+    var r = openRiffFile(fname)
 
     var ci = r.enterGroup()
-    assert ci.formatTypeId == "G1  "
+    check ci.formatTypeId == "G1  "
     var cur = toSeq(r.walkChunks)
     ci = r.currentChunk
-    assert ci.formatTypeId == "G1  "
-    assert cur.len == 1
-    assert cur[0].last.formatTypeId == "G1  "
+    check ci.formatTypeId == "G1  "
+    check cur.len == 1
+    check cur[0].formatTypeId == "G1  "
 
     ci = r.nextChunk()
-    assert ci.formatTypeId == FourCC_INFO
+    check ci.formatTypeId == FourCC_INFO
     cur = toSeq(r.walkChunks)
     ci = r.currentChunk
-    assert ci.formatTypeId == FourCC_INFO
-    assert cur.len == 4
-    assert cur[0].last.formatTypeId == "INFO"
-    assert cur[1].last.id == FourCC_INFO_ICOP
-    assert cur[2].last.id == FourCC_INFO_IART
-    assert cur[3].last.id == FourCC_INFO_ICMT
+    check ci.formatTypeId == FourCC_INFO
+    check cur.len == 4
+    check cur[0].formatTypeId == "INFO"
+    check cur[1].id == FourCC_INFO_ICOP
+    check cur[2].id == FourCC_INFO_IART
+    check cur[3].id == FourCC_INFO_ICMT
+
+    ci = r.enterGroup()
+    check ci.id == FourCC_INFO_ICOP
+    cur = toSeq(r.walkChunks)
+    check cur.len == 3
+    check cur[0].id == FourCC_INFO_ICOP
+    check cur[1].id == FourCC_INFO_IART
+    check cur[2].id == FourCC_INFO_ICMT
+
+    r.exitGroup()
+    ci = r.nextChunk()
+    check ci.formatTypeId == "G2  "
+    cur = toSeq(r.walkChunks)
+    ci = r.currentChunk
+    check ci.formatTypeId == "G2  "
+    check cur.len == 5
+    check cur[0].formatTypeId == "G2  "
+    check cur[1].id == "emp1"
+    check cur[2].id == "num "
+    check cur[3].formatTypeId == "G21 "
+    check cur[4].id == "str "
 
     ci = r.nextChunk()
-    assert ci.formatTypeId == "G2  "
+    check ci.id == FourCC_JUNK
     cur = toSeq(r.walkChunks)
     ci = r.currentChunk
-    assert ci.formatTypeId == "G2  "
-    assert cur.len == 5
-    assert cur[0].last.formatTypeId == "G2  "
-    assert cur[1].last.id == "emp1"
-    assert cur[2].last.id == "num "
-    assert cur[3].last.formatTypeId == "G21 "
-    assert cur[4].last.id == "str "
+    check ci.id == FourCC_JUNK
+    check cur.len == 3
+    check cur[0].id == FourCC_JUNK
+    check cur[1].formatTypeId == "G3  "
+    check cur[2].id == "buf "
 
     ci = r.nextChunk()
-    assert ci.id == FourCC_JUNK
+    check ci.formatTypeId == "G3  "
     cur = toSeq(r.walkChunks)
     ci = r.currentChunk
-    assert ci.id == FourCC_JUNK
-    assert cur.len == 3
-    assert cur[0].last.id == FourCC_JUNK
-    assert cur[1].last.formatTypeId == "G3  "
-    assert cur[2].last.id == "buf "
+    check ci.formatTypeId == "G3  "
+    check cur.len == 2
+    check cur[0].formatTypeId == "G3  "
+    check cur[1].id == "buf "
 
-    ci = r.nextChunk()
-    assert ci.formatTypeId == "G3  "
+    ci = r.enterGroup()
+    check ci.id == "buf "
     cur = toSeq(r.walkChunks)
     ci = r.currentChunk
-    assert ci.formatTypeId == "G3  "
-    assert cur.len == 2
-    assert cur[0].last.formatTypeId == "G3  "
-    assert cur[1].last.id == "buf "
+    check ci.id == "buf "
+    check cur.len == 1
+    check cur[0].id == "buf "
 
     r.close()
+
+  test "walkChunk() - subtrees - LE":
+    walkChunkSubtrees(TestFileLE)
+
+  test "walkChunk() - subtrees - BE":
+    walkChunkSubtrees(TestFileBE)
+
 # }}}
+
+  # {{{ ERRORS - operations on a closed reader
+  test "ERRORS - operations on a closed reader":
+    var r = openRiffFile(TestFileLE)
+    r.close()
+
+    expect RiffReadError: discard r.filename
+    expect RiffReadError: discard r.endian
+    expect RiffReadError: discard r.formTypeId
+    expect RiffReadError: discard r.currentChunk
+    expect RiffReadError: discard r.cursor
+    expect RiffReadError: discard r.getChunkPos()
+    expect RiffReadError: discard r.getFilePos()
+    expect RiffReadError: r.setChunkPos(1)
+    expect RiffReadError: discard r.read(uint8)
+    expect RiffReadError: discard r.readChar()
+    expect RiffReadError: discard r.readStr(1)
+    expect RiffReadError: discard r.readBStr()
+    expect RiffReadError: discard r.readWStr()
+    expect RiffReadError: discard r.readZStr()
+    expect RiffReadError: discard r.readBZStr()
+    expect RiffReadError: discard r.readWZStr()
+    expect RiffReadError: discard r.readFourCC()
+    expect RiffReadError: discard r.hasNextChunk()
+    expect RiffReadError: discard r.nextChunk()
+    expect RiffReadError: discard r.enterGroup()
+    expect RiffReadError: r.exitGroup()
+    expect RiffReadError: r.close()
+
+  # }}}
+  # {{{ ERRORS - navigating chunks
+  test "ERRORS - navigating chunks":
+    var r = openRiffFile(TestFileLE)
+
+    # exiting root chunk
+    var ci = r.currentChunk
+    check ci.formatTypeId == TestFormTypeId
+    expect RiffReadError: r.exitGroup()
+
+    # entering empty group chunk
+    ci = r.enterGroup()
+    check ci.formatTypeId == "G1  "
+    expect RiffReadError: discard r.enterGroup()
+
+    # entering regular chunk
+    ci = r.nextChunk()
+    ci = r.enterGroup()
+    check ci.id == FourCC_INFO_ICOP
+    expect RiffReadError: discard r.enterGroup()
+
+    # iterating past last subchunk
+    ci = r.currentChunk
+    check ci.id == FourCC_INFO_ICOP
+    ci = r.nextChunk()
+    ci = r.nextChunk()
+    check ci.id == FourCC_INFO_ICMT
+    expect RiffReadError: discard r.nextChunk()
+
+  # }}}
 
 # vim: et:ts=2:sw=2:fdm=marker
