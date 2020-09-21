@@ -119,6 +119,7 @@ createTestFile(TestFileBE, bigEndian)
 
 # }}}
 
+# {{{ Helpers
 suite "Helpers":
   test "validFourCC() - strict":
     check validFourCC("RIFF")
@@ -145,11 +146,9 @@ suite "Helpers":
     check fourCCToCharStr("RIFF") == "('R', 'I', 'F', 'F')"
     check fourCCToCharStr("A#\27 ") == "('A', '#', '\\27', ' ')"
 
+# }}}
+
 #[
-proc filename*(rr): string =
-proc endian*(rr): Endianness =
-proc formTypeId*(rr): string =
-proc currentChunk*(rr): ChunkInfo =
 proc cursor*(rr): Cursor =
 proc `cursor=`*(rr; c: Cursor) =
 proc getChunkPos*(rr): uint32 =
@@ -166,12 +165,6 @@ proc readZStr*(rr): string =
 proc readBZStr*(rr): string =
 proc readWZStr*(rr): string =
 proc readFourCC*(rr): string =
-proc hasNextChunk*(rr): bool =
-proc nextChunk*(rr): ChunkInfo =
-proc enterGroup*(rr) =
-proc exitGroup*(rr) =
-proc openRiffFile*(filename: string, bufSize: int = -1): RiffReader =
-proc close*(rr) =
 ]#
 
 
@@ -296,10 +289,10 @@ suite "WaveReader":
     r.close()
 
 
-  test "iterate through all top-level chunks (LE)":
+  test "iterate through all top-level chunks - LE":
     iterateTopLevelChunks(TestFileLE)
 
-  test "iterate through all top-level chunks (BE)":
+  test "iterate through all top-level chunks - BE":
     iterateTopLevelChunks(TestFileBE)
 
   # }}}
@@ -321,18 +314,22 @@ suite "WaveReader":
       ci = r.nextChunk()
       check ci.id == FourCC_LIST
       check ci.formatTypeId == "INFO"
+      check r.hasSubchunks()
 
       check r.hasSubchunks()
       ci = r.enterGroup()
       check ci.id == "ICOP"
+      check not r.hasSubchunks()
 
       check r.hasNextChunk()
       ci = r.nextChunk()
       check ci.id == "IART"
+      check not r.hasSubchunks()
 
       check r.hasNextChunk()
       ci = r.nextChunk()
       check ci.id == "ICMT"
+      check not r.hasSubchunks()
 
       check not r.hasNextChunk()
       r.exitGroup()
@@ -349,6 +346,7 @@ suite "WaveReader":
       check r.hasNextChunk()
       ci = r.nextChunk()
       check ci.id == "num "
+      check not r.hasSubchunks()
 
       block: # G21
         check r.hasNextChunk()
@@ -359,6 +357,7 @@ suite "WaveReader":
         check r.hasSubchunks()
         ci = r.enterGroup()
         check ci.id == "str "
+        check not r.hasSubchunks()
 
         check not r.hasNextChunk()
         r.exitGroup()
@@ -369,6 +368,7 @@ suite "WaveReader":
     check r.hasNextChunk()
     ci = r.nextChunk()
     check ci.id == "JUNK"
+    check not r.hasSubchunks()
 
     block: # G3
       check r.hasNextChunk()
@@ -381,11 +381,13 @@ suite "WaveReader":
       check r.hasSubchunks()
       ci = r.enterGroup()
       check ci.id == "buf "
+      check not r.hasSubchunks()
 
       check not r.hasNextChunk()
       r.exitGroup()
 
     check not r.hasNextChunk()
+
     r.close()
 
 
@@ -413,6 +415,8 @@ suite "WaveReader":
     check ci.id == FourCC_LIST
     check ci.formatTypeId == "INFO"
 
+    r.close()
+
   test "enter/exit empty group chunk - LE":
     enterExistEmptyGroupChunk(TestFileLE)
 
@@ -420,8 +424,8 @@ suite "WaveReader":
     enterExistEmptyGroupChunk(TestFileBE)
 
   # }}}
-  # {{{ walkChunk() - all chunks
-  template walkChunkAll(fname, formId: string) =
+  # {{{ walkChunks - all chunks
+  template walkChunksAll(fname, formId: string) =
     var r = openRiffFile(fname)
 
     var cur = toSeq(r.walkChunks)
@@ -463,15 +467,15 @@ suite "WaveReader":
     r.close()
 
 
-  test "walkChunk() - all chunks - LE":
-    walkChunkAll(TestFileLE, FourCC_RIFF)
+  test "walkChunks - all chunks - LE":
+    walkChunksAll(TestFileLE, FourCC_RIFF)
 
-  test "walkChunk() - all chunks - BE":
-    walkChunkAll(TestFileBE, FourCC_RIFX)
+  test "walkChunks - all chunks - BE":
+    walkChunksAll(TestFileBE, FourCC_RIFX)
 
   # }}}
-  # {{{ walkChunk() - subtrees
-  template walkChunkSubtrees(fname: string) =
+  # {{{ walkChunks - subtrees
+  template walkChunksSubtrees(fname: string) =
     var r = openRiffFile(fname)
 
     var ci = r.enterGroup()
@@ -543,14 +547,98 @@ suite "WaveReader":
 
     r.close()
 
-  test "walkChunk() - subtrees - LE":
-    walkChunkSubtrees(TestFileLE)
+  test "walkChunks - subtrees - LE":
+    walkChunksSubtrees(TestFileLE)
 
-  test "walkChunk() - subtrees - BE":
-    walkChunkSubtrees(TestFileBE)
+  test "walkChunks - subtrees - BE":
+    walkChunksSubtrees(TestFileBE)
 
 # }}}
+  # {{{ read single numeric values
+  template readNumericValues(fname: string) =
+    var r = openRiffFile(fname)
 
+    var ci = r.enterGroup()
+    ci = r.nextChunk()
+    ci = r.nextChunk()
+    ci = r.enterGroup()
+    ci = r.nextChunk()
+    check ci.id == "num "
+
+    check r.read(uint8) == 234'u8
+    check r.read(int8) == -42'i8
+    check r.read(uint16) == 12345'u16
+    check r.read(int16) == -8765'i16
+    check r.read(uint32) == 0xdeadbeef'u32
+    check r.read(int32) == 0xcafebabe'i32
+    check r.read(uint64) == 0xdeadbeefcafebabe'u64
+    check r.read(int64) == 0xcafebabedeadbeef'i64
+    check r.read(float32) == 1234.5678'f32
+    check r.read(float64) == 987654.7654321234'f64
+    check r.read(int8) == 7'i8
+
+    r.close()
+
+  test "read single numeric values - LE":
+    readNumericValues(TestFileLE)
+
+  test "read single numeric values - BE":
+    readNumericValues(TestFileBE)
+
+  # }}}
+  # {{{ read string values
+  template moveToStrChunk(r: RiffReader) =
+    var ci = r.enterGroup()
+    ci = r.nextChunk()
+    ci = r.nextChunk()
+    ci = r.enterGroup()
+    ci = r.nextChunk()
+    ci = r.nextChunk()
+    ci = r.enterGroup()
+    check ci.id == "str "
+    check ci.size == 111
+
+  template readStringValues(fname: string) =
+    var r = openRiffFile(fname)
+
+    moveToStrChunk(r)
+
+    check r.readChar() == 'x'
+    check r.readStr(49) == "Ḽơᶉëᶆ ȋṕšᶙṁ ḍỡḽǭᵳ ʂǐť"
+    check r.readBStr() == "árvíztűrőtükörfúrógép"
+    check r.readWStr() == "WStr"
+    check r.readZStr() == "ZStr"
+    check r.readBZStr() == "BZstr"
+    check r.readWZStr() == "WZstr"
+    check r.readFourCC() == "ILBM"
+
+    r.close()
+
+  test "read string values - LE":
+    readStringValues(TestFileLE)
+
+  test "read string values - BE":
+    readStringValues(TestFileBE)
+
+  # }}}
+  # {{{ get/set chunk pos
+  template getSetChunkPos(fname, formId: string) =
+    var r = openRiffFile(fname)
+
+    for ci in r.walkChunks():
+      check r.getChunkPos() == 0
+
+    r.close()
+    r = openRiffFile(fname)
+
+  test "get/set chunk pos - LE":
+    getSetChunkPos(TestFileLE, FourCC_RIFF)
+
+#  test "get/set chunk pos - BE":
+#    getSetChunkPos(TestFileBE, FourCC_RIFX)
+
+  # }}}
+  
   # {{{ ERRORS - operations on a closed reader
   test "ERRORS - operations on a closed reader":
     var r = openRiffFile(TestFileLE)
@@ -609,5 +697,7 @@ suite "WaveReader":
     expect RiffReadError: discard r.nextChunk()
 
   # }}}
+  # {{{ ERRORS - get/set chunk pos
 
+  # }}}
 # vim: et:ts=2:sw=2:fdm=marker
