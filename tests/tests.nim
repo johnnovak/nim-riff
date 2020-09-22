@@ -147,27 +147,6 @@ suite "Helpers":
     check fourCCToCharStr("A#\27 ") == "('A', '#', '\\27', ' ')"
 
 # }}}
-
-#[
-proc cursor*(rr): Cursor =
-proc `cursor=`*(rr; c: Cursor) =
-proc getChunkPos*(rr): uint32 =
-proc getFilePos*(rr): int64 =
-proc setChunkPos*(rr; pos: uint32, relativeTo: ChunkSeekPos = cspSet) =
-proc read*(rr; T: typedesc[SomeNumber]): T =
-proc read*[T: SomeNumber](rr; buf: var openArray[T],
-                          startIndex, numValues: Natural) =
-proc readChar*(rr): char =
-proc readStr*(rr; length: Natural): string =
-proc readBStr*(rr): string =
-proc readWStr*(rr): string =
-proc readZStr*(rr): string =
-proc readBZStr*(rr): string =
-proc readWZStr*(rr): string =
-proc readFourCC*(rr): string =
-]#
-
-
 # {{{ WaveReader
 suite "WaveReader":
 
