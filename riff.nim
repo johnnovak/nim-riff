@@ -481,7 +481,7 @@ proc getChunkPos*(rr): uint32 =
     dec(result, FourCCSize)
 
 
-proc setChunkPos*(rr; pos: uint32, relativeTo: ChunkSeekPos = cspSet) =
+proc setChunkPos*(rr; pos: int64, relativeTo: ChunkSeekPos = cspSet) =
   ## Sets the current chunk position according to the `relativeTo` parameter.
   ##
   ## Raises a `RiffReadError` if the reader is closed or not initialised.
@@ -492,9 +492,9 @@ proc setChunkPos*(rr; pos: uint32, relativeTo: ChunkSeekPos = cspSet) =
   let currChunkPos = rr.getChunkPos().int64
 
   var newPos = case relativeTo
-  of cspSet: pos.int64
-  of cspCur: currChunkPos + pos.int64
-  of cspEnd: currChunkPos - pos.int64
+  of cspSet: pos
+  of cspCur: currChunkPos + pos
+  of cspEnd: ci.size.int64 + pos
 
   if newPos < 0 or newPos >= ci.size.int64:
     raise newException(RiffReadError,

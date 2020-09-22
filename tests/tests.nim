@@ -338,14 +338,20 @@ suite "WaveReader":
       ci = r.nextChunk()
       check ci.id == FourCC_LIST
       check ci.formatTypeId == "G2  "
+      check ci.size == 196
+      check ci.filePos == 110
 
       check r.hasSubchunks()
       ci = r.enterGroup()
       check ci.id == "emp1"
+      check ci.size == 0
+      check ci.filePos == 122
 
       check r.hasNextChunk()
       ci = r.nextChunk()
       check ci.id == "num "
+      check ci.size == 43
+      check ci.filePos == 130
       check not r.hasSubchunks()
 
       block: # G21
@@ -353,10 +359,14 @@ suite "WaveReader":
         ci = r.nextChunk()
         check ci.id == FourCC_List
         check ci.formatTypeId == "G21 "
+        check ci.size == 124
+        check ci.filePos == 182
 
         check r.hasSubchunks()
         ci = r.enterGroup()
         check ci.id == "str "
+        check ci.size == 111
+        check ci.filePos == 194
         check not r.hasSubchunks()
 
         check not r.hasNextChunk()
@@ -553,17 +563,19 @@ suite "WaveReader":
   test "walkChunks - subtrees - BE":
     walkChunksSubtrees(TestFileBE)
 
-# }}}
+  # }}}
   # {{{ read single numeric values
-  template readNumericValues(fname: string) =
-    var r = openRiffFile(fname)
-
+  template moveToNumChunk(r: RiffReader) =
     var ci = r.enterGroup()
     ci = r.nextChunk()
     ci = r.nextChunk()
     ci = r.enterGroup()
     ci = r.nextChunk()
     check ci.id == "num "
+
+  template readNumericValues(fname: string) =
+    var r = openRiffFile(fname)
+    moveToNumChunk(r)
 
     check r.read(uint8) == 234'u8
     check r.read(int8) == -42'i8
@@ -600,7 +612,6 @@ suite "WaveReader":
 
   template readStringValues(fname: string) =
     var r = openRiffFile(fname)
-
     moveToStrChunk(r)
 
     check r.readChar() == 'x'
@@ -629,16 +640,56 @@ suite "WaveReader":
       check r.getChunkPos() == 0
 
     r.close()
+
     r = openRiffFile(fname)
+    moveToNumChunk(r)
+
+    var ci = r.currentChunk
+    check ci.size == 43
+    check ci.filePos == 130
+
+    check r.getChunkPos() == 0
+    check r.getFilePos() == 130 + ChunkHeaderSize
+
+    r.setChunkPos(6, cspCur)
+    check r.getChunkPos() == 6
+    check r.getFilePos() == 130 + ChunkHeaderSize + 6
+    check r.read(uint32) == 0xdeadbeef'u32
+
+    r.setChunkPos(-2, cspCur)
+    check r.getChunkPos() == 8
+    check r.getFilePos() == 130 + ChunkHeaderSize + 8
+
+    r.setChunkPos(-1, cspEnd)
+    check r.getChunkPos() == 42
+    check r.getFilePos() == 130 + ChunkHeaderSize + 42
+    check r.read(int8) == 7'i8
+    check r.getChunkPos() == 43
+    check r.getFilePos() == 130 + ChunkHeaderSize + 43
+
+    r.setChunkPos(-9, cspEnd)
+    check r.getChunkPos() == 34
+    check r.getFilePos() == 130 + ChunkHeaderSize + 34
+    check r.read(float64) == 987654.7654321234'f64
+
+    r.setChunkPos(10, cspSet)
+    check r.getChunkPos() == 10
+    check r.getFilePos() == 130 + ChunkHeaderSize + 10
+    check r.read(int32) == 0xcafebabe'i32
+
+    r.setChunkPos(0, cspSet)
+    check r.getChunkPos() == 0
+    check r.getFilePos() == 130 + ChunkHeaderSize
+    check r.read(uint8) == 234'u8
 
   test "get/set chunk pos - LE":
     getSetChunkPos(TestFileLE, FourCC_RIFF)
 
-#  test "get/set chunk pos - BE":
-#    getSetChunkPos(TestFileBE, FourCC_RIFX)
+  test "get/set chunk pos - BE":
+    getSetChunkPos(TestFileBE, FourCC_RIFX)
 
   # }}}
-  
+
   # {{{ ERRORS - operations on a closed reader
   test "ERRORS - operations on a closed reader":
     var r = openRiffFile(TestFileLE)
@@ -700,4 +751,6 @@ suite "WaveReader":
   # {{{ ERRORS - get/set chunk pos
 
   # }}}
+# }}}
+
 # vim: et:ts=2:sw=2:fdm=marker
