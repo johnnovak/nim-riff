@@ -13,6 +13,9 @@ requires "nim >= 1.2.6"
 
 # Tasks
 
+task tests, "Run all tests":
+  exec "nim c -r tests/tests"
+
 task examples, "Compiles the examples":
   exec "nim c -d:release examples/rifftool.nim"
 

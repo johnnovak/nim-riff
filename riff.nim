@@ -333,9 +333,6 @@ type
     of ckGroup: formatTypeId*: string  ## format type FourCC for group chunks
     of ckChunk: discard
 
-    # TODO
-    # path*:    seq[ChunkInfo]
-
   Cursor* = object  ## a location in the RIFF file (a chunk path plus a chunk offset)
     path*:     seq[ChunkInfo]
     chunkPos*: uint32
