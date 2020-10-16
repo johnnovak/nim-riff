@@ -327,8 +327,10 @@ w = createRiffFile(filename, "GRMM", endian=littleEndian, bufSize=8192)
 
 When you're done writing to the RIFF file, you must call the `close()` method.
 
-:warning: _Calling `close()` is very important because this ensures that all the parent group chunk
-sizes and the total file size in the root RIFF chunk are updated correctly!_
+:warning: _Calling `close()` is very important because this ensures that the
+total file size in the root RIFF chunk is updated correctly! It also closes
+all currently open chunks recursively, making sure their headers are updated
+correctly._
 
 #### Creating chunks
 
