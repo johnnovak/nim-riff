@@ -1,0 +1,8 @@
+0.2.0
+-----
+
+- remove support for `int`, `uint` and `float` (to avoid architecture related
+  ambiguity)
+- upgrade to Nim 1.6.0
+- upgrade to latest binstreams
+

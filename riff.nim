@@ -1,7 +1,6 @@
 ## :Author: John Novak <john@johnnovak.net>
 ##
-## **nim-riff** is a library for reading and writing [Resource Interchange File
-## Format (RIFF)](https://en.wikipedia.org/wiki/Resource_Interchange_File_Format)
+## **nim-riff** is a library for reading and writing [Resource Interchange File Format (RIFF)](https://en.wikipedia.org/wiki/Resource_Interchange_File_Format)
 ## files.
 ##
 ## Main features:
@@ -68,6 +67,12 @@ import tables
 # }}}
 
 # {{{ Common
+
+type
+  RiffPrimitives* = char |
+                    int8 | int16 | int32 | int64 |
+                    uint | uint8 | uint16 | uint32 | uint64 |
+                    float32 | float64
 
 const
   FourCCSize* = 4
@@ -359,6 +364,7 @@ proc validFourCC*(fourCC: string, relaxed: bool = false): bool =
 
 proc fourCCToCharStr*(fourCC: string): string =
   ## Converts a FourCC to a printable string.
+  ##
   ## ```
   ## fourCCToCharStr("RIFF")     # returns "('R', 'I', 'F', 'F')"
   ## fourCCToCharStr("A#\27 ")   # returns "('A', '#', '\\27', ' ')"
@@ -537,7 +543,7 @@ proc `cursor=`*(rr; c: Cursor) =
   rr.fs.setPosition(c.filePos)
 
 
-proc read*(rr; T: typedesc[SomeNumber]): T =
+proc read*(rr; T: typedesc[RiffPrimitives]): T =
   ## Reads a numeric value; the type needs to be passed in as an argument.
   ##
   ## ```
@@ -557,8 +563,8 @@ proc read*(rr; T: typedesc[SomeNumber]): T =
   checkChunkLimits(rr, numBytes)
   result = rr.fs.read(T)
 
-proc read*[T: SomeNumber](rr; buf: var openArray[T],
-                          startIndex, numValues: Natural) =
+proc read*[T: RiffPrimitives](rr; buf: var openArray[T],
+                              startIndex, numValues: Natural) =
   ## Reads `numValues` number of values into `buf` starting from `startIndex`.
   ##
   ## Raises a `RiffReadError` if the reader is closed or not initialised, or
@@ -583,7 +589,7 @@ proc readChar*(rr): char =
   rr.checkNotInGroupChunk(roReadingData)
 
   checkChunkLimits(rr, 1)
-  result = rr.fs.readChar()
+  result = rr.fs.read(char)
 
 proc readStr*(rr; length: Natural): string =
   ## Reads `length` number of bytes as an UTF-8 string.
@@ -629,7 +635,7 @@ proc readZStr*(rr): string =
   ## Raises an `IOError` on read errors.
   result = ""
   while true:
-    let c = rr.readChar()
+    let c = rr.read(char)
     if c == chr(0): return
     result &= c
 
@@ -927,15 +933,15 @@ proc incChunkSize(rw; numBytes: Natural) =
   if rw.trackChunkSize:
     inc(rw.path[^1].size, numBytes)
 
-proc write*[T: SomeNumber](rw; value: T) =
+proc write*[T: RiffPrimitives](rw; value: T) =
   ##
   ## Raises a `RiffReadError` if the writer is closed or not initialised.
   checkNotClosed(rw)
   rw.fs.write(value)
   incChunkSize(rw, sizeof(T))
 
-proc write*[T: SomeNumber](rw; buf: var openArray[T],
-                           startIndex, numValues: Natural) =
+proc write*[T: RiffPrimitives](rw; buf: var openArray[T],
+                               startIndex, numValues: Natural) =
   ##
   ## Raises a `RiffReadError` if the writer is closed or not initialised.
   checkNotClosed(rw)
@@ -946,7 +952,7 @@ proc writeChar*(rw; c: char) =
   ##
   ## Raises a `RiffReadError` if the writer is closed or not initialised.
   checkNotClosed(rw)
-  rw.fs.writeChar(c)
+  rw.fs.write(c)
   incChunkSize(rw, 1)
 
 proc writeStr*(rw; s: string) =
