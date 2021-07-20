@@ -1,11 +1,11 @@
 # Package
 
-version       = "0.1.0"
+version       = "0.1.1"
 author        = "John Novak <john@johnnovak.net>"
 description   = "RIFF file handling in Nim"
 license       = "WTFPL"
 
-skipDirs = @["doc", "examples"]
+skipDirs = @["doc", "examples", "tests"]
 
 # Dependencies
 
