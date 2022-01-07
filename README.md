@@ -60,6 +60,18 @@ section](#references--reading-materials).
     nimble install riff
 
 
+## Compiling the examples
+
+The examples require the `simple_parseopt` module, so install that first:
+
+    nimble install simple_parseopt
+
+Then you can compile the examples in debug or release mode:
+
+    nimble examples
+    nimble examplesDebug
+
+
 ## Usage
 
 ### Reading RIFF files
