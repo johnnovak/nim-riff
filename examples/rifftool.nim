@@ -1,7 +1,5 @@
-import options
-import os
-import strformat
-import strutils
+import std/os
+import std/strutils
 
 import riff
 import simple_parseopt
