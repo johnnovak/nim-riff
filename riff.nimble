@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.2.0"
+version       = "0.2.1"
 author        = "John Novak <john@johnnovak.net>"
 description   = "RIFF file handling in Nim"
 license       = "WTFPL"
@@ -9,7 +9,7 @@ skipDirs = @["doc", "examples", "tests"]
 
 # Dependencies
 
-requires "nim >= 1.6.0", "binstreams >= 0.2.0"
+requires "nim >= 2.0.2", "binstreams >= 0.2.0"
 
 # Tasks
 
