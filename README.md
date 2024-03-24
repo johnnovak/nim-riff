@@ -74,7 +74,7 @@ Then you can compile the examples in debug or release mode:
 
 ## Documentation
 
-https://www.johnnovak.net/riff/
+https://www.johnnovak.net/nim-riff/
 
 
 ## Usage
