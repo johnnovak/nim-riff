@@ -10,7 +10,9 @@
 ## * Convenient helper methods to navigate the chunk hierarchy
 ## * Cursor support
 ##
-## Please refer to the guide on how to use the library.
+## Please refer to the [guide](https://github.com/johnnovak/nim-riff?tab=readme-ov-file#usage)
+## and [examples](https://github.com/johnnovak/nim-riff/tree/master/examples)
+## on how to use the library.
 ##
 
 import binstreams
