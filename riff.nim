@@ -1,6 +1,6 @@
 ## :Author: John Novak <john@johnnovak.net>
 ##
-## **nim-riff** is a library for reading and writing [Resource Interchange File Format (RIFF)](https://en.wikipedia.org/wiki/Resource_Interchange_File_Format)
+## [**nim-riff** is a library for reading and writing [Resource Interchange File Format (RIFF)](https://en.wikipedia.org/wiki/Resource_Interchange_File_Format)
 ## files.
 ##
 ## Main features:
@@ -13,6 +13,9 @@
 ## Please refer to the [guide](https://github.com/johnnovak/nim-riff?tab=readme-ov-file#usage)
 ## and [examples](https://github.com/johnnovak/nim-riff/tree/master/examples)
 ## on how to use the library.
+##
+## Visit the project's GitHub repository for further info:
+## https://github.com/johnnovak/nim-riff
 ##
 
 import binstreams
