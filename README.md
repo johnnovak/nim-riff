@@ -1,6 +1,6 @@
 # nim-riff
 
-## Overview 
+## Overview
 
 **nim-riff** is a library for reading and writing [Resource Interchange File
 Format (RIFF)](https://en.wikipedia.org/wiki/Resource_Interchange_File_Format)
@@ -70,6 +70,11 @@ Then you can compile the examples in debug or release mode:
 
     nimble examples
     nimble examplesDebug
+
+
+## Documentation
+
+https://www.johnnovak.net/riff/
 
 
 ## Usage
@@ -252,7 +257,7 @@ position `0`.
 You can query the current chunk position with `getChunkPos()` and set it with
 `setChunkPos()`, which works similarly to `setFilePosition()` from the
 standard `io` library. An error will be raised if you try to set the position
-beyond the limits of the chunk. 
+beyond the limits of the chunk.
 
 ```nim
 let pos = r.getChunkPos()
@@ -295,7 +300,7 @@ r.readWZStr()   # read a Pascal-style string (16-bit `length`) that is also
 #### Cursors
 
 It is possible to save the current chunk and chunk position as a `Cursor`
-and restore it later. 
+and restore it later.
 
 ```nim
 let cur = r.cursor    # store the current cursor
@@ -348,7 +353,7 @@ as well._
 
 You can create chunks or list chunks with the `beginChunk()` and
 `beginListChunk()` methods, respectively. The chunk ID (or format type ID in
-case of list chunks) needs to be passed in. 
+case of list chunks) needs to be passed in.
 
 Calling `endChunk()` closes the current chunk and writes the final chunk size
 to its header.
@@ -391,46 +396,45 @@ w.writeWZStr("Voodoo Lady")
 
 ## References & reading materials
 
-
-[1] "EA IFF 85" Standard for Interchange Format Files  
-*Electronic Arts, 1985*  
+[1] "EA IFF 85" Standard for Interchange Format Files
+*Electronic Arts, 1985*
 https://wiki.amigaos.net/wiki/EA_IFF_85_Standard_for_Interchange_Format_Files
 http://www.martinreddy.net/gfx/2d/IFF.txt
 
-[2] A Quick Introduction to IFF  
-*AmigaOS Documentation Wiki*  
+[2] A Quick Introduction to IFF
+*AmigaOS Documentation Wiki*
 https://wiki.amigaos.net/wiki/A_Quick_Introduction_to_IFF
 
-[3] Resource Interchange File Format  
-*Wikipedia*  
+[3] Resource Interchange File Format
+*Wikipedia*
 https://en.wikipedia.org/wiki/Resource_Interchange_File_Format
 
-[4] RIFF (Resource Interchange File Format)  
-*Digital Preservation. Library of Congress*  
+[4] RIFF (Resource Interchange File Format)
+*Digital Preservation. Library of Congress*
 https://www.loc.gov/preservation/digital/formats/fdd/fdd000025.shtml
 
-[5] Multimedia Programming Interface and Data Specifications 1.0  
-*Microsoft / IBM, August 1991*  
+[5] Multimedia Programming Interface and Data Specifications 1.0
+*Microsoft / IBM, August 1991*
 http://www-mmsp.ece.mcgill.ca/Documents/AudioFormats/WAVE/Docs/riffmci.pdf
 
-[6] Multimedia Data Standards Update  
-*Microsoft, April 1994*  
+[6] Multimedia Data Standards Update
+*Microsoft, April 1994*
 http://www-mmsp.ece.mcgill.ca/Documents/AudioFormats/WAVE/Docs/RIFFNEW.pdf
 
-[7] Exiftool - Riff Info Tags  
-*ExifTool website*  
+[7] Exiftool - Riff Info Tags
+*ExifTool website*
 https://exiftool.org/TagNames/RIFF.html#Info
 
-[8] Exchangeable image file format for digital still cameras, Exif Version 2.32  
-*Camera & Imaging Products Association, May 2019*  
+[8] Exchangeable image file format for digital still cameras, Exif Version 2.32
+*Camera & Imaging Products Association, May 2019*
 http://www.cipa.jp/std/documents/e/DC-X008-Translation-2019-E.pdf
 
-[9] Audio Interchange File Format: "AIFF", Version 1.3  
-*Apple, January 1989*  
+[9] Audio Interchange File Format: "AIFF", Version 1.3
+*Apple, January 1989*
 http://www-mmsp.ece.mcgill.ca/Documents/AudioFormats/AIFF/Docs/AIFF-1.3.pdf
 
-[10] AVI RIFF File Reference  
-*Microsoft Dev Center, May 2018*  
+[10] AVI RIFF File Reference
+*Microsoft Dev Center, May 2018*
 https://docs.microsoft.com/en-us/windows/win32/directshow/avi-riff-file-reference
 
 
