@@ -40,7 +40,7 @@ jobs:
 
       - name: Build
         run: |
-          nimble docgen
+          nimble -y docgen
           cd doc
           mv riff.html index.html
 
