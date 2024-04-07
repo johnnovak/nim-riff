@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.2.1"
+version       = "0.2.2"
 author        = "John Novak <john@johnnovak.net>"
 description   = "RIFF file handling in Nim"
 license       = "WTFPL"
