@@ -18,11 +18,11 @@
 ## https://github.com/johnnovak/nim-riff
 ##
 
-import binstreams
-import strformat
-import strutils
-import tables
+import std/strformat
+import std/strutils
+import std/tables
 
+import binstreams
 
 # {{{ References
 # ==============
