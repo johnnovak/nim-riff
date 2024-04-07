@@ -413,7 +413,7 @@ func parentChunk(rr): ChunkInfo =
   if rr.atRootChunk: rr.path[0] else: rr.path[^2]
 
 proc cursorPop(rr): ChunkInfo =
-  result = rr.path.pop()
+  result = rr.path.pop
   rr.currParentChunk = rr.parentChunk
 
 proc cursorAdd(rr; ci: ChunkInfo) =
@@ -438,28 +438,28 @@ proc filename*(rr): string =
   ## Returns the filename of the RIFF file.
   ##
   ## Raises a `RiffReadError` if the reader is closed or not initialised.
-  rr.checkNotClosed()
+  rr.checkNotClosed
   rr.fs.filename
 
 proc endian*(rr): Endianness =
   ## Returns the endianness of the RIFF file.
   ##
   ## Raises a `RiffReadError` if the reader is closed or not initialised.
-  rr.checkNotClosed()
+  rr.checkNotClosed
   rr.fs.endian
 
 proc formTypeId*(rr): string =
   ## Returns the form type ID of the RIFF file (this indicates the concrete
   ## format of the file, e.g. "WAVE" or "AVI ").
   ## Raises a `RiffReadError` if the reader is closed or not initialised.
-  rr.checkNotClosed()
+  rr.checkNotClosed
   rr.path[0].formatTypeId
 
 proc currentChunk*(rr): ChunkInfo =
   ## Returns information about the current chunk.
   ##
   ## Raises a `RiffReadError` if the reader is closed or not initialised.
-  rr.checkNotClosed()
+  rr.checkNotClosed
   rr.currChunk
 
 
@@ -467,7 +467,7 @@ proc checkChunkLimits(rr: RiffReader, numBytes: Natural) {.inline.} =
   if not rr.doCheckChunkLimits: return
   let
     pc = rr.currParentChunk
-    chunkPos = rr.fs.getPosition() - (pc.filePos + ChunkHeaderSize)
+    chunkPos = rr.fs.getPosition - (pc.filePos + ChunkHeaderSize)
 
   if chunkPos + numBytes > pc.size.int64:
     raise newException(RiffReadError,
@@ -483,8 +483,8 @@ proc getChunkPos*(rr): uint32 =
   ## Raises a `RiffReadError` if the reader is closed or not initialised.
   ##
   ## Raises an `IOError` on read errors.
-  rr.checkNotClosed()
-  result = (rr.fs.getPosition() - rr.currChunk.filePos - ChunkHeaderSize).uint32
+  rr.checkNotClosed
+  result = (rr.fs.getPosition - rr.currChunk.filePos - ChunkHeaderSize).uint32
   if rr.currChunk.kind == ckGroup:
     dec(result, FourCCSize)
 
@@ -495,9 +495,9 @@ proc setChunkPos*(rr; pos: int64, relativeTo: ChunkSeekPos = cspSet) =
   ## Raises a `RiffReadError` if the reader is closed or not initialised.
   ##
   ## Raises an `IOError` on read errors.
-  rr.checkNotClosed()
+  rr.checkNotClosed
   let ci = rr.currChunk
-  let currChunkPos = rr.getChunkPos().int64
+  let currChunkPos = rr.getChunkPos.int64
 
   var newPos = case relativeTo
   of cspSet: pos
@@ -519,8 +519,8 @@ proc getFilePos*(rr): int64 =
   ## Raises a `RiffReadError` if the reader is closed or not initialised.
   ##
   ## Raises an `IOError` on read errors.
-  rr.checkNotClosed()
-  rr.fs.getPosition()
+  rr.checkNotClosed
+  rr.fs.getPosition
 
 
 proc cursor*(rr): Cursor =
@@ -529,11 +529,11 @@ proc cursor*(rr): Cursor =
   ## Raises a `RiffReadError` if the reader is closed or not initialised.
   ##
   ## Raises an `IOError` on read errors.
-  rr.checkNotClosed()
+  rr.checkNotClosed
   Cursor(
     path: deepCopy(rr.path),
-    filePos: rr.fs.getPosition(),
-    chunkPos: rr.getChunkPos()
+    filePos: rr.fs.getPosition,
+    chunkPos: rr.getChunkPos
   )
 
 proc `cursor=`*(rr; c: Cursor) =
@@ -542,7 +542,7 @@ proc `cursor=`*(rr; c: Cursor) =
   ## Raises a `RiffReadError` if the reader is closed or not initialised.
   ##
   ## Raises an `IOError` on read errors.
-  rr.checkNotClosed()
+  rr.checkNotClosed
   rr.path = deepCopy(c.path)
   rr.currParentChunk = rr.parentChunk
   rr.fs.setPosition(c.filePos)
@@ -561,7 +561,7 @@ proc read*(rr; T: typedesc[RiffPrimitives]): T =
   ## if an attempt has been made to read past the end of the chunk.
   ##
   ## Raises an `IOError` on read errors.
-  rr.checkNotClosed()
+  rr.checkNotClosed
   rr.checkNotInGroupChunk(roReadingData)
 
   let numBytes = sizeof(T)
@@ -576,7 +576,7 @@ proc read*[T: RiffPrimitives](rr; buf: var openArray[T],
   ## if an attempt has been made to read past the end of the chunk.
   ##
   ## Raises an `IOError` on read errors.
-  rr.checkNotClosed()
+  rr.checkNotClosed
   rr.checkNotInGroupChunk(roReadingData)
 
   let numBytes = numValues * sizeof(T)
@@ -590,7 +590,7 @@ proc readChar*(rr): char =
   ## if an attempt has been made to read past the end of the chunk.
   ##
   ## Raises an `IOError` on read errors.
-  rr.checkNotClosed()
+  rr.checkNotClosed
   rr.checkNotInGroupChunk(roReadingData)
 
   checkChunkLimits(rr, 1)
@@ -603,7 +603,7 @@ proc readStr*(rr; length: Natural): string =
   ## if an attempt has been made to read past the end of the chunk.
   ##
   ## Raises an `IOError` on read errors.
-  rr.checkNotClosed()
+  rr.checkNotClosed
   rr.checkNotInGroupChunk(roReadingData)
 
   checkChunkLimits(rr, length)
@@ -652,7 +652,7 @@ proc readBZStr*(rr): string =
   ## if an attempt has been made to read past the end of the chunk.
   ##
   ## Raises an `IOError` on read errors.
-  result = rr.readBStr()
+  result = rr.readBStr
   rr.setChunkPos(1, cspCur)
 
 proc readWZStr*(rr): string =
@@ -664,7 +664,7 @@ proc readWZStr*(rr): string =
   ## if an attempt has been made to read past the end of the chunk.
   ##
   ## Raises an `IOError` on read errors.
-  result = rr.readWStr()
+  result = rr.readWStr
   rr.setChunkPos(1, cspCur)
 
 proc readFourCC*(rr): string =
@@ -686,7 +686,7 @@ proc hasNextChunk*(rr): bool =
   ## group chunk.
   ##
   ## Raises a `RiffReadError` if the reader is closed or not initialised.
-  rr.checkNotClosed()
+  rr.checkNotClosed
   let
     pc = rr.parentChunk
     cc = rr.currChunk
@@ -704,7 +704,7 @@ proc readChunk(rr; nextPos: int64): ChunkInfo =
   try:
     rr.doCheckNotInGroup = false
 
-    let chunkId = rr.readFourCC()
+    let chunkId = rr.readFourCC
     if not validFourCC(chunkId):
       raise newException(RiffReadError,
         fmt"Invalid chunk ID: {fourCCToCharStr(chunkId)}")
@@ -720,7 +720,7 @@ proc readChunk(rr; nextPos: int64): ChunkInfo =
     ci.filePos = nextPos
 
     if ci.kind == ckGroup:
-      ci.formatTypeId = rr.readFourCC()
+      ci.formatTypeId = rr.readFourCC
       if not validFourCC(ci.formatTypeId):
         raise newException(RiffReadError,
           fmt"Invalid format type ID: {fourCCToCharStr(ci.formatTypeId)}")
@@ -741,7 +741,7 @@ proc nextChunk*(rr): ChunkInfo =
   ## reader is closed or not initialised.
   ##
   ## Raises an `IOError` on read errors.
-  rr.checkNotClosed()
+  rr.checkNotClosed
   if not rr.hasNextChunk:
     raise newException(RiffReadError,
       "Cannot go to next chunk: " &
@@ -753,7 +753,7 @@ proc nextChunk*(rr): ChunkInfo =
 
   let ci = rr.readChunk(nextPos)
 
-  discard rr.cursorPop()
+  discard rr.cursorPop
   rr.cursorAdd(ci)
   result = ci
 
@@ -762,7 +762,7 @@ proc enterGroup*(rr): ChunkInfo =
   ##
   ## Raises a `RiffReadError` if the current chunk is not a group chunk, or if
   ## the reader is closed or not initialised.
-  rr.checkNotClosed()
+  rr.checkNotClosed
 
   if not rr.hasSubchunks:
     raise newException(RiffReadError,
@@ -789,12 +789,12 @@ proc exitGroup*(rr) =
   ##
   ## Raises a `RiffReadError` if we're at the root level RIFF group chunk, or
   ## if the reader is closed or not initialised.
-  rr.checkNotClosed()
+  rr.checkNotClosed
 
   if rr.atRootChunk:
     raise newException(RiffReadError, "Cannot exit root chunk")
   elif rr.parentChunk.kind == ckGroup:
-    discard rr.cursorPop()
+    discard rr.cursorPop
   else:
     # This error indicates a bug, it should never happen
     raise newException(RiffReadError,
@@ -803,7 +803,7 @@ proc exitGroup*(rr) =
 
 # TODO ignore/allow lists
 iterator walkChunks*(rr): ChunkInfo {.closure.} =
-  let startCur = rr.cursor()
+  let startCur = rr.cursor
   let startDepth = rr.path.len
   var ci = rr.currentChunk
   yield ci
@@ -813,17 +813,17 @@ iterator walkChunks*(rr): ChunkInfo {.closure.} =
     block main:
       while true:
         if ci.kind == ckGroup and rr.hasSubchunks:
-          ci = rr.enterGroup()
+          ci = rr.enterGroup
           yield ci
         else:
           block next:
             if rr.hasNextChunk:
-              ci = rr.nextChunk()
+              ci = rr.nextChunk
               yield ci
             else:
               if rr.path.len == startDepth: break main
               else:
-                rr.exitGroup()
+                rr.exitGroup
                 if rr.path.len == startDepth: break main
                 break next
 
@@ -832,7 +832,7 @@ iterator walkChunks*(rr): ChunkInfo {.closure.} =
 
 proc readFormChunkHeader(rr): ChunkInfo =
   var ci = ChunkInfo(kind: ckGroup)
-  ci.id = rr.readFourCC()
+  ci.id = rr.readFourCC
 
   case ci.id:
   of FourCC_RIFF: rr.fs.endian = littleEndian
@@ -844,7 +844,7 @@ proc readFormChunkHeader(rr): ChunkInfo =
   ci.size = rr.read(uint32)
   # TODO check against filesize
   ci.filePos = 0
-  ci.formatTypeId = rr.readFourCC()
+  ci.formatTypeId = rr.readFourCC
 
   if not validFourCC(ci.formatTypeId):
     raise newException(RiffReadError,
@@ -855,7 +855,7 @@ proc readFormChunkHeader(rr): ChunkInfo =
 
 proc init(rr) =
   rr.doCheckChunkLimits = false
-  let ci = rr.readFormChunkHeader()
+  let ci = rr.readFormChunkHeader
   rr.path = newSeq[ChunkInfo]()
   rr.cursorAdd(ci)
   rr.doCheckChunkLimits = true
@@ -871,7 +871,7 @@ proc openRiffFile*(filename: string, bufSize: int = -1): RiffReader =
   ## Raises an `IOError` if the file cannot be opened.
   var rr = new RiffReader
   rr.fs = openFileStream(filename, littleEndian, fmRead, bufSize)
-  rr.init()
+  rr.init
   result = rr
 
 proc openRiffFile*(f: File, bufSize: int = -1): RiffReader =
@@ -884,7 +884,7 @@ proc openRiffFile*(f: File, bufSize: int = -1): RiffReader =
   ## Raises an `IOError` if the file cannot be opened.
   var rr = new RiffReader
   rr.fs = newFileStream(f, littleEndian)
-  rr.init()
+  rr.init
   result = rr
 
 proc close*(rr) =
@@ -893,8 +893,8 @@ proc close*(rr) =
   ## Raises a `RiffReadError` if the reader is closed or not initialised.
   ##
   ## Raises an `IOError` if the file cannot be closed.
-  rr.checkNotClosed()
-  rr.fs.close()
+  rr.checkNotClosed
+  rr.fs.close
   rr.fs = nil
   rr.closed = true
 
@@ -924,14 +924,14 @@ func filename*(rw): string =
   ## empty string.
   ##
   ## Raises a `RiffReadError` if the writer is closed or not initialised.
-  rw.checkNotClosed()
+  rw.checkNotClosed
   rw.fs.filename
 
 func endian*(rw): Endianness =
   ## Returns the endianness of the RIFF file associated with the reader.
   ##
   ## Raises a `RiffReadError` if the writer is closed or not initialised.
-  rw.checkNotClosed()
+  rw.checkNotClosed
   rw.fs.endian
 
 proc incChunkSize(rw; numBytes: Natural) =
@@ -1007,15 +1007,15 @@ proc writeFourCC*(rw; fourCC: string) =
 proc doBeginChunk(rw; id: string) =
   ##
   ## Raises a `RiffReadError` if the writer is closed or not initialised.
-  rw.checkNotClosed()
+  rw.checkNotClosed
   rw.trackChunkSize = false
 
   rw.path.add(
-    ChunkInfo(id: id, size: 0, filePos: rw.fs.getPosition())
+    ChunkInfo(id: id, size: 0, filePos: rw.fs.getPosition)
   )
 
   rw.writeFourCC(id)
-  rw.write(ChunkSizePlaceholder)  # endChunk() will update this
+  rw.write(ChunkSizePlaceholder)  # endChunk will update this
 
   rw.trackChunkSize = true
 
@@ -1055,10 +1055,10 @@ proc beginListChunk*(rw; formatTypeId: string) =
 proc endChunk*(rw) =
   ##
   ## Raises a `RiffReadError` if the writer is closed or not initialised.
-  rw.checkNotClosed()
+  rw.checkNotClosed
   rw.trackChunkSize = false
 
-  var currChunk = rw.path.pop()
+  var currChunk = rw.path.pop
   # Write pad byte if chunk size is odd
   if currChunk.size mod 2 > 0: rw.write(0'u8)
 
@@ -1090,7 +1090,7 @@ template chunk*(rw; chunkId: string, body: untyped) =
   ## ```
   rw.beginChunk(chunkId)
   body
-  rw.endChunk()
+  rw.endChunk
 
 
 template listChunk*(rw; formatTypeId: string, body: untyped) =
@@ -1108,7 +1108,7 @@ template listChunk*(rw; formatTypeId: string, body: untyped) =
   ## ```
   rw.beginListChunk(formatTypeId)
   body
-  rw.endChunk()
+  rw.endChunk
 
 
 proc createRiffFile*(filename: string, formTypeId: string,
@@ -1136,17 +1136,17 @@ proc createRiffFile*(filename: string, formTypeId: string,
 
 
 proc close*(rw) =
-  ## Closes all currently open chunks (by calling `endChunk()`), updates the
+  ## Closes all currently open chunks (by calling `endChunk`), updates the
   ## size of the root RIFF chunk, and closes the RIFF writer.
   ##
   ## It is very important to call this method at the end to ensure that all
   ## chunk sizes are correctly updated in the file!
   ##
   ## Raises a `RiffReadError` if the writer is closed or not initialised.
-  rw.checkNotClosed()
+  rw.checkNotClosed
   while rw.path.len > 0:
-    rw.endChunk()
-  rw.fs.close()
+    rw.endChunk
+  rw.fs.close
   rw.fs = nil
   rw.closed = true
 
