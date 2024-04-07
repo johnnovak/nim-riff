@@ -552,7 +552,7 @@ proc read*(rr; T: typedesc[RiffPrimitives]): T =
   ## Reads a numeric value; the type needs to be passed in as an argument.
   ##
   ## ```
-  ## let i8 = r.read(uint8)
+  ## let i8  = r.read(uint8)
   ## let f32 = r.read(float32)
   ## let i64 = r.read(int64)
   ## ```
@@ -1077,6 +1077,38 @@ proc endChunk*(rw) =
       rw.inGroupChunk = true
 
     rw.trackChunkSize = true
+
+
+template chunk*(rw; chunkId: string, body: untyped) =
+  ##
+  ## Convenience template to write a chunk.
+  ##
+  ## ```
+  ## rw.chunk("disp"):
+  ##   rw.write(1'i32)
+  ##   rw.writeWStr("some text")
+  ## ```
+  rw.beginChunk(chunkId)
+  body
+  rw.endChunk()
+
+
+template listChunk*(rw; formatTypeId: string, body: untyped) =
+  ##
+  ## Convenience template to write a list chunk.
+  ##
+  ## ```
+  ## rw.listChunk("list"):
+  ##   rw.chunk("disp"):
+  ##     rw.write(1'i32)
+  ##     rw.writeWStr("some text")
+  ##
+  ##   rw.chunk("foo"):
+  ##     rw.write(42'i16)
+  ## ```
+  rw.beginListChunk(formatTypeId)
+  body
+  rw.endChunk()
 
 
 proc createRiffFile*(filename: string, formTypeId: string,
