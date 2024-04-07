@@ -349,7 +349,7 @@ type
     filePos*:  int64
 
 
-proc validFourCC*(fourCC: string, relaxed: bool = false): bool =
+func validFourCC*(fourCC: string, relaxed: bool = false): bool =
   ## Returns true is the passed in FourCC is valid. A FourCC is valid if:
   ## * it is 4 ASCII characters long
   ## * it only contains alphanumeric ASCII characters or spaces
@@ -367,7 +367,7 @@ proc validFourCC*(fourCC: string, relaxed: bool = false): bool =
     elif not relaxed and not c.isAlphaNumeric: return false
   return true
 
-proc fourCCToCharStr*(fourCC: string): string =
+func fourCCToCharStr*(fourCC: string): string =
   ## Converts a FourCC to a printable string.
   ##
   ## ```
@@ -441,14 +441,14 @@ proc filename*(rr): string =
   rr.checkNotClosed
   rr.fs.filename
 
-proc endian*(rr): Endianness =
+func endian*(rr): Endianness =
   ## Returns the endianness of the RIFF file.
   ##
   ## Raises a `RiffReadError` if the reader is closed or not initialised.
   rr.checkNotClosed
   rr.fs.endian
 
-proc formTypeId*(rr): string =
+func formTypeId*(rr): string =
   ## Returns the form type ID of the RIFF file (this indicates the concrete
   ## format of the file, e.g. "WAVE" or "AVI ").
   ## Raises a `RiffReadError` if the reader is closed or not initialised.
@@ -918,7 +918,7 @@ proc checkNotClosed(rw) =
   if rw.closed:
     raise newException(RiffWriteError, "Writer has been closed")
 
-func filename*(rw): string =
+proc filename*(rw): string =
   ## Returns the name of the file associated with the reader. If the
   ## reader was initialised from a file handle, the filename will be an
   ## empty string.
@@ -927,7 +927,7 @@ func filename*(rw): string =
   rw.checkNotClosed
   rw.fs.filename
 
-func endian*(rw): Endianness =
+proc endian*(rw): Endianness =
   ## Returns the endianness of the RIFF file associated with the reader.
   ##
   ## Raises a `RiffReadError` if the writer is closed or not initialised.
